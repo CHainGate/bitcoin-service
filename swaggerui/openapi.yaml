@@ -1,0 +1,146 @@
+openapi: 3.0.0
+servers:
+  - url: 'http://localhost:9001/api'
+info:
+  description: >-
+    This is the OpenAPI definition of the bitcoin service.
+  version: 1.0.0
+  title: OpenAPI bitcoin service
+tags:
+  - name: payment
+  - name: notification
+paths:
+  /payment:
+    post:
+      tags:
+        - payment
+      summary: create new payment
+      operationId: createPayment
+      responses:
+        '201':
+          description: payment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponseDto'
+        '400':
+          description: bad request
+      requestBody:
+        $ref: '#/components/requestBodies/PaymentRequestDto'
+  /notification/walletnotify:
+    post:
+      tags:
+        - notification
+      summary: New wallet notification from Bitcoin Node
+      operationId: walletNotify
+      responses:
+        '200':
+          description: successful operation
+      requestBody:
+        $ref: '#/components/requestBodies/WalletNotifyRequestDto'
+  /notification/blocknotify:
+    post:
+      tags:
+        - notification
+      summary: New block notification from bitcoin node
+      operationId: blockNotify
+      responses:
+        '200':
+          description: successful operation
+      requestBody:
+        $ref: '#/components/requestBodies/BlockNotifyRequestDto'
+
+components:
+  requestBodies:
+    PaymentRequestDto:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PaymentRequestDto'
+    WalletNotifyRequestDto:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/WalletNotifyRequestDto'
+    BlockNotifyRequestDto:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BlockNotifyRequestDto'
+  schemas:
+    PaymentRequestDto:
+      title: Payment Request
+      type: object
+      required:
+        - priceCurrency
+        - priceAmount
+        - wallet
+        - mode
+      properties:
+        priceCurrency:
+          type: string
+          enum:
+            - usd
+            - chf
+        priceAmount:
+          type: number
+          format: double
+        wallet:
+          type: string
+        mode:
+          type: string
+          enum:
+            - test
+            - prod
+    PaymentResponseDto:
+      title: Payment Response
+      type: object
+      required:
+        - paymentId
+        - priceAmount
+        - priceCurrency
+        - payAddress
+        - payAmount
+        - payCurrency
+        - paymentState
+      properties:
+        paymentId:
+          type: string
+          format: uuid
+        priceAmount:
+          type: number
+          format: double
+        priceCurrency:
+          type: string
+          enum:
+            - usd
+            - chf
+        payAddress:
+          type: string
+        payAmount:
+          type: number
+          format: double
+        payCurrency:
+          type: string
+          enum:
+            - btc
+        paymentState:
+          type: string
+          enum:
+            - waiting
+    WalletNotifyRequestDto:
+      title: Wallet Notify Request
+      type: object
+      required:
+        - txId
+      properties:
+        txId:
+          type: string
+    BlockNotifyRequestDto:
+      title: Block Notify Request
+      type: object
+      required:
+        - blockHash
+      properties:
+        blockHash:
+          type: string

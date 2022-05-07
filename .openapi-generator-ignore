@@ -1,0 +1,7 @@
+Dockerfile
+go.mod
+main.go
+README.md
+.openapi-generator/
+api/
+**service.go
