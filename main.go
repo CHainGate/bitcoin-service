@@ -14,7 +14,14 @@ import (
 
 func main() {
 	utils.NewOpts()
-	err := repository.SetupDatabase()
+	accountRepo, err := repository.SetupDatabase()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	//TODO: initial reconciliation with blockchain data, maybe we missed some transactions
+
+	bitcoinService, err := service.NewBitcoinService(accountRepo)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -22,7 +29,7 @@ func main() {
 	NotificationApiService := service.NewNotificationApiService()
 	NotificationApiController := openApi.NewNotificationApiController(NotificationApiService)
 
-	PaymentApiService := service.NewPaymentApiService()
+	PaymentApiService := service.NewPaymentApiService(bitcoinService)
 	PaymentApiController := openApi.NewPaymentApiController(PaymentApiService)
 
 	router := openApi.NewRouter(NotificationApiController, PaymentApiController)

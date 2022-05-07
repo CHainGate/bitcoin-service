@@ -30,22 +30,13 @@ func NewNotificationApiService() openApi.NotificationApiServicer {
 
 // BlockNotify - New block notification from bitcoin node
 func (s *NotificationApiService) BlockNotify(ctx context.Context, blockNotifyRequestDto openApi.BlockNotifyRequestDto) (openApi.ImplResponse, error) {
-	// TODO - update BlockNotify with the required logic for this service method.
-	// Add api_notification_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
-
-	//TODO: Uncomment the next line to return response Response(200, {}) or use other options such as http.Ok ...
-	//return Response(200, nil),nil
+	//TODO: free used accounts if no payment received after maybe 1h??
 
 	return openApi.Response(http.StatusNotImplemented, nil), errors.New("BlockNotify method not implemented")
 }
 
 // WalletNotify - New wallet notification from Bitcoin Node
 func (s *NotificationApiService) WalletNotify(ctx context.Context, walletNotifyRequestDto openApi.WalletNotifyRequestDto) (openApi.ImplResponse, error) {
-	// TODO - update WalletNotify with the required logic for this service method.
-	// Add api_notification_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
-
-	//TODO: Uncomment the next line to return response Response(200, {}) or use other options such as http.Ok ...
-	//return Response(200, nil),nil
 
 	return openApi.Response(http.StatusNotImplemented, nil), errors.New("WalletNotify method not implemented")
 }

@@ -11,7 +11,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"github.com/CHainGate/bitcoin-service/openApi"
@@ -21,23 +20,20 @@ import (
 // This service should implement the business logic for every endpoint for the PaymentApi API.
 // Include any external packages or services that will be required by this service.
 type PaymentApiService struct {
+	bitcoinService IBitcoinService
 }
 
 // NewPaymentApiService creates a default api service
-func NewPaymentApiService() openApi.PaymentApiServicer {
-	return &PaymentApiService{}
+func NewPaymentApiService(bitcoinService IBitcoinService) openApi.PaymentApiServicer {
+	return &PaymentApiService{bitcoinService}
 }
 
 // CreatePayment - create new payment
 func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequestDto openApi.PaymentRequestDto) (openApi.ImplResponse, error) {
-	// TODO - update CreatePayment with the required logic for this service method.
-	// Add api_payment_service.go to the .openapi-generator-ignore to avoid overwriting this service implementation when updating open api generation.
+	payment, err := s.bitcoinService.createNewPayment(paymentRequestDto)
+	if err != nil {
+		return openApi.Response(http.StatusBadRequest, payment), err
+	}
 
-	//TODO: Uncomment the next line to return response Response(201, PaymentResponseDto{}) or use other options such as http.Ok ...
-	//return Response(201, PaymentResponseDto{}), nil
-
-	//TODO: Uncomment the next line to return response Response(400, {}) or use other options such as http.Ok ...
-	//return Response(400, nil),nil
-
-	return openApi.Response(http.StatusNotImplemented, nil), errors.New("CreatePayment method not implemented")
+	return openApi.Response(http.StatusCreated, payment), nil
 }

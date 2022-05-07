@@ -10,12 +10,18 @@ import (
 )
 
 type OptsType struct {
-	ServerPort int
-	DbHost     string
-	DbUser     string
-	DbPassword string
-	DbName     string
-	DbPort     string
+	ServerPort      int
+	DbHost          string
+	DbUser          string
+	DbPassword      string
+	DbName          string
+	DbPort          string
+	BitcoinTestHost string
+	BitcoinTestUser string
+	BitcoinTestPass string
+	BitcoinMainHost string
+	BitcoinMainUser string
+	BitcoinMainPass string
 }
 
 var (
@@ -29,13 +35,18 @@ func NewOpts() {
 	}
 
 	o := &OptsType{}
-	//TODO: add default values
 	flag.IntVar(&o.ServerPort, "SERVER_PORT", lookupEnvInt("SERVER_PORT", 9001), "Server PORT")
 	flag.StringVar(&o.DbHost, "DB_HOST", lookupEnv("DB_HOST", "localhost"), "Database Host")
 	flag.StringVar(&o.DbUser, "DB_USER", lookupEnv("DB_USER", "postgres"), "Database User")
 	flag.StringVar(&o.DbPassword, "DB_PASSWORD", lookupEnv("DB_PASSWORD"), "Database Password")
 	flag.StringVar(&o.DbName, "DB_NAME", lookupEnv("DB_NAME", "bitcoin"), "Database Name")
 	flag.StringVar(&o.DbPort, "DB_PORT", lookupEnv("DB_PORT", "5434"), "Database Port")
+	flag.StringVar(&o.BitcoinTestHost, "BITCOIN_TEST_HOST", lookupEnv("BITCOIN_TEST_HOST", "localhost:18332"), "Bitcoin Host")
+	flag.StringVar(&o.BitcoinTestUser, "BITCOIN_TEST_USER", lookupEnv("BITCOIN_TEST_USER", "user"), "Bitcoin User")
+	flag.StringVar(&o.BitcoinTestPass, "BITCOIN_TEST_PASS", lookupEnv("BITCOIN_TEST_PASS"), "Bitcoin Password")
+	flag.StringVar(&o.BitcoinMainHost, "BITCOIN_MAIN_HOST", lookupEnv("BITCOIN_MAIN_HOST", "localhost:8333"), "Bitcoin Host")
+	flag.StringVar(&o.BitcoinMainUser, "BITCOIN_MAIN_USER", lookupEnv("BITCOIN_MAIN_USER"), "Bitcoin User")
+	flag.StringVar(&o.BitcoinMainPass, "BITCOIN_MAIN_PASS", lookupEnv("BITCOIN_MAIN_PASS"), "Bitcoin Password")
 
 	Opts = o
 }

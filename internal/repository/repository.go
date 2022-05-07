@@ -8,26 +8,26 @@ import (
 	"gorm.io/gorm"
 )
 
-func SetupDatabase() error {
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable", utils.Opts.DbHost, utils.Opts.DbUser, utils.Opts.DbPassword, utils.Opts.DbName, utils.Opts.DbPort)
+func SetupDatabase() (IAccountRepository, error) {
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
+		utils.Opts.DbHost,
+		utils.Opts.DbUser,
+		utils.Opts.DbPassword,
+		utils.Opts.DbName,
+		utils.Opts.DbPort)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	err = autoMigrateDB(db)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	/*	merchantRepo, apiKeyRepo, paymentRepo, err := createRepositories(db)
-		if err != nil {
-			return err
-		}*/
-
-	return nil
+	return createRepositories(db), nil
 }
 
 func autoMigrateDB(db *gorm.DB) error {
@@ -46,20 +46,6 @@ func autoMigrateDB(db *gorm.DB) error {
 	return nil
 }
 
-/*func createRepositories(db *gorm.DB) (IMerchantRepository, IApiKeyRepository, IPaymentRepository, error) {
-	merchantRepo, err := NewMerchantRepository(db)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	paymentRepo, err := NewPaymentRepository(db)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	apiKeyRepo, err := NewApiKeyRepository(db)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return merchantRepo, apiKeyRepo, paymentRepo, nil
-}*/
+func createRepositories(db *gorm.DB) IAccountRepository {
+	return NewAccountRepository(db)
+}
