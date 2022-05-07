@@ -2,13 +2,14 @@ package repository
 
 import (
 	"fmt"
+
 	"github.com/CHainGate/bitcoin-service/internal/model"
 	"github.com/CHainGate/bitcoin-service/internal/utils"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-func SetupDatabase() (IAccountRepository, error) {
+func SetupDatabase() (IAccountRepository, IPaymentRepository, error) {
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
 		utils.Opts.DbHost,
 		utils.Opts.DbUser,
@@ -19,15 +20,17 @@ func SetupDatabase() (IAccountRepository, error) {
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	err = autoMigrateDB(db)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return createRepositories(db), nil
+	accountRepo, paymentRepo := createRepositories(db)
+
+	return accountRepo, paymentRepo, nil
 }
 
 func autoMigrateDB(db *gorm.DB) error {
@@ -46,6 +49,9 @@ func autoMigrateDB(db *gorm.DB) error {
 	return nil
 }
 
-func createRepositories(db *gorm.DB) IAccountRepository {
-	return NewAccountRepository(db)
+func createRepositories(db *gorm.DB) (IAccountRepository, IPaymentRepository) {
+	accountRepo := NewAccountRepository(db)
+	paymentRepo := NewPaymentRepository(db)
+	return accountRepo, paymentRepo
+
 }

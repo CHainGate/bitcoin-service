@@ -19,3 +19,4 @@
 openApi
 .openapi-generator
 api
+proxyClientApi

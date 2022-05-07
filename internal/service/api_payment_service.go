@@ -13,6 +13,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/CHainGate/backend/pkg/enum"
+
 	"github.com/CHainGate/bitcoin-service/openApi"
 )
 
@@ -32,8 +34,18 @@ func NewPaymentApiService(bitcoinService IBitcoinService) openApi.PaymentApiServ
 func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequestDto openApi.PaymentRequestDto) (openApi.ImplResponse, error) {
 	payment, err := s.bitcoinService.createNewPayment(paymentRequestDto)
 	if err != nil {
-		return openApi.Response(http.StatusBadRequest, payment), err
+		return openApi.Response(http.StatusBadRequest, nil), err
 	}
 
-	return openApi.Response(http.StatusCreated, payment), nil
+	result := openApi.PaymentResponseDto{
+		PaymentId:     payment.ID.String(),
+		PriceAmount:   payment.PriceAmount,
+		PriceCurrency: payment.PriceCurrency.String(),
+		PayAddress:    payment.Account.Address,
+		PayAmount:     payment.PaymentStates[0].PayAmount.String(),
+		PayCurrency:   enum.BTC.String(),
+		PaymentState:  payment.PaymentStates[0].StateName.String(),
+	}
+
+	return openApi.Response(http.StatusCreated, result), nil
 }

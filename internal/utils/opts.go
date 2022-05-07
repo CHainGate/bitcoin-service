@@ -22,6 +22,8 @@ type OptsType struct {
 	BitcoinMainHost string
 	BitcoinMainUser string
 	BitcoinMainPass string
+	ProxyBaseUrl    string
+	BackendBaseUrl  string
 }
 
 var (
@@ -47,6 +49,8 @@ func NewOpts() {
 	flag.StringVar(&o.BitcoinMainHost, "BITCOIN_MAIN_HOST", lookupEnv("BITCOIN_MAIN_HOST", "localhost:8333"), "Bitcoin Host")
 	flag.StringVar(&o.BitcoinMainUser, "BITCOIN_MAIN_USER", lookupEnv("BITCOIN_MAIN_USER"), "Bitcoin User")
 	flag.StringVar(&o.BitcoinMainPass, "BITCOIN_MAIN_PASS", lookupEnv("BITCOIN_MAIN_PASS"), "Bitcoin Password")
+	flag.StringVar(&o.ProxyBaseUrl, "PROXY_BASE_URL", lookupEnv("PROXY_BASE_URL", "http://localhost:8001/api"), "Proxy base url")
+	flag.StringVar(&o.BackendBaseUrl, "BACKEND_BASE_URL", lookupEnv("BACKEND_BASE_URL", "http://localhost:8000/api/internal"), "Backend base url")
 
 	Opts = o
 }

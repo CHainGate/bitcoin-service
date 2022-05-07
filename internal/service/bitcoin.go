@@ -1,19 +1,23 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
+	"math/big"
+
 	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/CHainGate/bitcoin-service/internal/model"
 	"github.com/CHainGate/bitcoin-service/internal/repository"
 	"github.com/CHainGate/bitcoin-service/internal/utils"
 	"github.com/CHainGate/bitcoin-service/openApi"
+	"github.com/CHainGate/bitcoin-service/proxyClientApi"
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcutil"
-	"math/big"
 )
 
 type IBitcoinService interface {
@@ -26,10 +30,14 @@ type bitcoinService struct {
 	testClient        *rpcclient.Client
 	mainClient        *rpcclient.Client
 	accountRepository repository.IAccountRepository
+	paymentRepository repository.IPaymentRepository
 }
 
-func NewBitcoinService(accountRepository repository.IAccountRepository) (IBitcoinService, error) {
-	s := &bitcoinService{accountRepository: accountRepository}
+func NewBitcoinService(
+	accountRepository repository.IAccountRepository,
+	paymentRepository repository.IPaymentRepository,
+) (IBitcoinService, error) {
+	s := &bitcoinService{accountRepository: accountRepository, paymentRepository: paymentRepository}
 	testClient, err := s.createBitcoinTestClient()
 	if err != nil {
 		return nil, err
@@ -44,9 +52,6 @@ func NewBitcoinService(accountRepository repository.IAccountRepository) (IBitcoi
 }
 
 func (s *bitcoinService) createNewPayment(paymentRequest openApi.PaymentRequestDto) (*model.Payment, error) {
-	// get exchange rate
-	s.getExchangeRate()
-
 	mode, ok := enum.ParseStringToModeEnum(paymentRequest.Mode)
 	if !ok {
 		return nil, errors.New("wrong mode")
@@ -56,29 +61,41 @@ func (s *bitcoinService) createNewPayment(paymentRequest openApi.PaymentRequestD
 		return nil, errors.New("wrong price currency")
 	}
 
+	payAmountInBtc, err := s.getExchangeRate(paymentRequest.PriceAmount, priceCurrency)
+	if err != nil {
+		return nil, err
+	}
+
+	payAmountInSatoshi := s.convertBtcToSatoshi(payAmountInBtc)
+
 	account, err := s.getFreeAccount(mode)
 	if err != nil {
 		return nil, err
 	}
 
 	state := model.PaymentState{
-		PayAmount:      model.NewBigInt(big.NewInt(0)), // TODO: add real amount
+		Base:           model.Base{ID: uuid.New()},
+		PayAmount:      model.NewBigInt(payAmountInSatoshi),
 		AmountReceived: model.NewBigInt(big.NewInt(0)),
 		StateName:      enum.Waiting,
 	}
 
 	payment := model.Payment{
-		Account:             account,
-		UserWallet:          paymentRequest.Wallet,
-		Mode:                mode,
-		PriceAmount:         paymentRequest.PriceAmount,
-		PriceCurrency:       priceCurrency,
-		CurrentPaymentState: state,
-		PaymentStates:       []model.PaymentState{state},
-		Confirmations:       -1,
+		Account:               account,
+		UserWallet:            paymentRequest.Wallet,
+		Mode:                  mode,
+		PriceAmount:           paymentRequest.PriceAmount,
+		PriceCurrency:         priceCurrency,
+		CurrentPaymentState:   state,
+		CurrentPaymentStateId: &state.ID,
+		PaymentStates:         []model.PaymentState{state},
+		Confirmations:         -1,
 	}
-	account.Used = true
-	account.Payments = append(account.Payments, payment)
+
+	err = s.paymentRepository.Create(&payment)
+	if err != nil {
+		return nil, err
+	}
 
 	return &payment, nil
 }
@@ -193,11 +210,29 @@ func (s *bitcoinService) getFreeAccount(mode enum.Mode) (*model.Account, error) 
 		return newAccount, nil
 	}
 
+	freeAccount.Used = true
+	err = s.accountRepository.Update(freeAccount)
+	if err != nil {
+		return nil, err
+	}
 	return freeAccount, nil
 }
 
-func (s *bitcoinService) getExchangeRate() error {
-	return nil
+func (s *bitcoinService) getExchangeRate(priceAmount float64, priceCurrency enum.FiatCurrency) (float64, error) {
+	amount := fmt.Sprintf("%g", priceAmount)
+	srcCurrency := priceCurrency.String()
+	dstCurrency := enum.BTC.String()
+	mode := enum.Main.String()
+
+	configuration := proxyClientApi.NewConfiguration()
+	configuration.Servers[0].URL = utils.Opts.ProxyBaseUrl
+	apiClient := proxyClientApi.NewAPIClient(configuration)
+	resp, _, err := apiClient.ConversionApi.GetPriceConversion(context.Background()).Amount(amount).SrcCurrency(srcCurrency).DstCurrency(dstCurrency).Mode(mode).Execute()
+	if err != nil {
+		return 0, err
+	}
+
+	return *resp.Price, nil
 }
 
 func (s *bitcoinService) getClientByMode(mode enum.Mode) (*rpcclient.Client, error) {
@@ -209,4 +244,15 @@ func (s *bitcoinService) getClientByMode(mode enum.Mode) (*rpcclient.Client, err
 	default:
 		return nil, errors.New("mode not implemented")
 	}
+}
+
+func (s *bitcoinService) convertBtcToSatoshi(val float64) *big.Int {
+	bigVal := new(big.Float)
+	bigVal.SetFloat64(val)
+	balance := big.NewFloat(0).Mul(bigVal, big.NewFloat(100000000))
+	final, accur := balance.Int(nil)
+	if accur == big.Below {
+		final.Add(final, big.NewInt(1))
+	}
+	return final
 }

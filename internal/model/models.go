@@ -3,12 +3,13 @@ package model
 import (
 	"database/sql/driver"
 	"fmt"
-	"github.com/CHainGate/backend/pkg/enum"
-	"github.com/google/uuid"
-	"gorm.io/gorm"
 	"math/big"
 	"reflect"
 	"time"
+
+	"github.com/CHainGate/backend/pkg/enum"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type Base struct {
@@ -29,24 +30,24 @@ type Account struct {
 type Payment struct {
 	Base
 	Account               *Account
-	AccountId             uuid.UUID `gorm:"type:uuid"`
+	AccountID             uuid.UUID `gorm:"type:uuid"`
 	UserWallet            string
 	Mode                  enum.Mode
 	PriceAmount           float64 `gorm:"type:numeric(30,15);default:0"`
 	PriceCurrency         enum.FiatCurrency
 	CurrentPaymentStateId *uuid.UUID     `gorm:"type:uuid"`
-	CurrentPaymentState   PaymentState   `gorm:"foreignKey:CurrentPaymentStateId"`
-	PaymentStates         []PaymentState `gorm:"<-:false"`
+	CurrentPaymentState   PaymentState   `gorm:"<-:false;foreignKey:CurrentPaymentStateId"`
+	PaymentStates         []PaymentState // in eth service this one is <-:false
 	Confirmations         int
 }
 
 type PaymentState struct {
 	Base
-	AccountId      uuid.UUID `gorm:"type:uuid;"`
-	PayAmount      *BigInt   `gorm:"type:numeric(30);default:0"`
-	AmountReceived *BigInt   `gorm:"type:numeric(30);default:0"`
+	/*	AccountID      uuid.UUID `gorm:"type:uuid;"`*/
+	PayAmount      *BigInt `gorm:"type:numeric(30);default:0"`
+	AmountReceived *BigInt `gorm:"type:numeric(30);default:0"`
 	StateName      enum.State
-	PaymentId      uuid.UUID `gorm:"type:uuid"`
+	PaymentID      uuid.UUID `gorm:"type:uuid"`
 }
 
 type BigInt struct {

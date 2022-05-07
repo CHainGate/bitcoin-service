@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/CHainGate/bitcoin-service/internal/repository"
 	"log"
 	"net/http"
 	"strconv"
+
+	"github.com/CHainGate/bitcoin-service/internal/repository"
 
 	"github.com/CHainGate/bitcoin-service/internal/service"
 	"github.com/CHainGate/bitcoin-service/internal/utils"
@@ -14,14 +15,14 @@ import (
 
 func main() {
 	utils.NewOpts()
-	accountRepo, err := repository.SetupDatabase()
+	accountRepo, paymentRepo, err := repository.SetupDatabase()
 	if err != nil {
 		fmt.Println(err)
 	}
 
 	//TODO: initial reconciliation with blockchain data, maybe we missed some transactions
 
-	bitcoinService, err := service.NewBitcoinService(accountRepo)
+	bitcoinService, err := service.NewBitcoinService(accountRepo, paymentRepo)
 	if err != nil {
 		fmt.Println(err)
 	}
