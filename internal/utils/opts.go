@@ -43,7 +43,8 @@ func NewOpts() {
 	flag.StringVar(&o.DbPassword, "DB_PASSWORD", lookupEnv("DB_PASSWORD"), "Database Password")
 	flag.StringVar(&o.DbName, "DB_NAME", lookupEnv("DB_NAME", "bitcoin"), "Database Name")
 	flag.StringVar(&o.DbPort, "DB_PORT", lookupEnv("DB_PORT", "5434"), "Database Port")
-	flag.StringVar(&o.BitcoinTestHost, "BITCOIN_TEST_HOST", lookupEnv("BITCOIN_TEST_HOST", "localhost:18332"), "Bitcoin Host")
+	//TODO: special client for regmode? reg port 18443 test port 18332
+	flag.StringVar(&o.BitcoinTestHost, "BITCOIN_TEST_HOST", lookupEnv("BITCOIN_TEST_HOST", "localhost:18443"), "Bitcoin Host")
 	flag.StringVar(&o.BitcoinTestUser, "BITCOIN_TEST_USER", lookupEnv("BITCOIN_TEST_USER", "user"), "Bitcoin User")
 	flag.StringVar(&o.BitcoinTestPass, "BITCOIN_TEST_PASS", lookupEnv("BITCOIN_TEST_PASS"), "Bitcoin Password")
 	flag.StringVar(&o.BitcoinMainHost, "BITCOIN_MAIN_HOST", lookupEnv("BITCOIN_MAIN_HOST", "localhost:8333"), "Bitcoin Host")

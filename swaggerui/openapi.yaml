@@ -28,27 +28,35 @@ paths:
       requestBody:
         $ref: '#/components/requestBodies/PaymentRequestDto'
   /notification/walletnotify:
-    post:
+    get:
       tags:
         - notification
       summary: New wallet notification from Bitcoin Node
       operationId: walletNotify
+      parameters:
+        - in: query
+          name: tx_id
+          required: true
+          schema:
+            type: string
       responses:
         '200':
           description: successful operation
-      requestBody:
-        $ref: '#/components/requestBodies/WalletNotifyRequestDto'
   /notification/blocknotify:
-    post:
+    get:
       tags:
         - notification
       summary: New block notification from bitcoin node
       operationId: blockNotify
+      parameters:
+        - in: query
+          name: block_hash
+          required: true
+          schema:
+            type: string
       responses:
         '200':
           description: successful operation
-      requestBody:
-        $ref: '#/components/requestBodies/BlockNotifyRequestDto'
 
 components:
   requestBodies:
@@ -57,16 +65,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/PaymentRequestDto'
-    WalletNotifyRequestDto:
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/WalletNotifyRequestDto'
-    BlockNotifyRequestDto:
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/BlockNotifyRequestDto'
   schemas:
     PaymentRequestDto:
       title: Payment Request
@@ -127,19 +125,3 @@ components:
           type: string
           enum:
             - waiting
-    WalletNotifyRequestDto:
-      title: Wallet Notify Request
-      type: object
-      required:
-        - txId
-      properties:
-        txId:
-          type: string
-    BlockNotifyRequestDto:
-      title: Block Notify Request
-      type: object
-      required:
-        - blockHash
-      properties:
-        blockHash:
-          type: string

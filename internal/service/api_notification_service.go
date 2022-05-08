@@ -12,6 +12,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/CHainGate/bitcoin-service/openApi"
@@ -29,14 +30,16 @@ func NewNotificationApiService() openApi.NotificationApiServicer {
 }
 
 // BlockNotify - New block notification from bitcoin node
-func (s *NotificationApiService) BlockNotify(ctx context.Context, blockNotifyRequestDto openApi.BlockNotifyRequestDto) (openApi.ImplResponse, error) {
+func (s *NotificationApiService) BlockNotify(ctx context.Context, blockHash string) (openApi.ImplResponse, error) {
 	//TODO: free used accounts if no payment received after maybe 1h??
 
+	fmt.Println(blockHash)
 	return openApi.Response(http.StatusNotImplemented, nil), errors.New("BlockNotify method not implemented")
 }
 
 // WalletNotify - New wallet notification from Bitcoin Node
-func (s *NotificationApiService) WalletNotify(ctx context.Context, walletNotifyRequestDto openApi.WalletNotifyRequestDto) (openApi.ImplResponse, error) {
+func (s *NotificationApiService) WalletNotify(ctx context.Context, txId string) (openApi.ImplResponse, error) {
 
+	fmt.Println(txId)
 	return openApi.Response(http.StatusNotImplemented, nil), errors.New("WalletNotify method not implemented")
 }
