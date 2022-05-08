@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/CHainGate/backend/pkg/enum"
 	"net/http"
 
 	"github.com/CHainGate/bitcoin-service/openApi"
@@ -22,16 +23,18 @@ import (
 // This service should implement the business logic for every endpoint for the NotificationApi API.
 // Include any external packages or services that will be required by this service.
 type NotificationApiService struct {
+	bitcoinService IBitcoinService
 }
 
 // NewNotificationApiService creates a default api service
-func NewNotificationApiService() openApi.NotificationApiServicer {
-	return &NotificationApiService{}
+func NewNotificationApiService(bitcoinService IBitcoinService) openApi.NotificationApiServicer {
+	return &NotificationApiService{bitcoinService}
 }
 
 // BlockNotify - New block notification from bitcoin node
 func (s *NotificationApiService) BlockNotify(ctx context.Context, blockHash string) (openApi.ImplResponse, error) {
 	//TODO: free used accounts if no payment received after maybe 1h??
+	//TODO: add mode to openapi query
 
 	fmt.Println(blockHash)
 	return openApi.Response(http.StatusNotImplemented, nil), errors.New("BlockNotify method not implemented")
@@ -39,7 +42,8 @@ func (s *NotificationApiService) BlockNotify(ctx context.Context, blockHash stri
 
 // WalletNotify - New wallet notification from Bitcoin Node
 func (s *NotificationApiService) WalletNotify(ctx context.Context, txId string) (openApi.ImplResponse, error) {
+	//TODO: add mode to openapi query
+	s.bitcoinService.handleWalletNotify(txId, enum.Test)
 
-	fmt.Println(txId)
-	return openApi.Response(http.StatusNotImplemented, nil), errors.New("WalletNotify method not implemented")
+	return openApi.Response(http.StatusOK, nil), nil
 }

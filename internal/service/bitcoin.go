@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"log"
 	"math/big"
 
 	"github.com/google/uuid"
@@ -24,8 +25,7 @@ import (
 
 type IBitcoinService interface {
 	createNewPayment(paymentRequest openApi.PaymentRequestDto) (*model.Payment, error)
-	getReceivedByAddress(account string, mode enum.Mode)
-	sendToAddress(account string, mode enum.Mode) error
+	handleWalletNotify(txId string, mode enum.Mode)
 }
 
 type bitcoinService struct {
@@ -140,26 +140,63 @@ func (s *bitcoinService) sendToAddress(account string, mode enum.Mode) error {
 func (s *bitcoinService) handleWalletNotify(txId string, mode enum.Mode) {
 	transaction, err := s.getTransaction(txId, mode)
 	if err != nil {
+		log.Println(err.Error())
 		return
 	}
 
-	//TODO: only 0 and 6 conf will be handles
-	//TODO: how do we know if it is receiving or sending notification
-	//Confirmations from walletNotify can only be 0 or 1
-	amount, err := s.getReceivedByAddress(transaction.Details[0].Address, int(transaction.Confirmations), mode)
+	// only conf 0 is relevant (first user pay in)
+	// if amount is negative it is a sending payment
+	if transaction.Confirmations != 0 || transaction.Amount < 0 {
+		return
+	}
+
+	address := transaction.Details[0].Address
+	currentPayment, err := s.paymentRepository.FindCurrentPaymentByAddress(address)
 	if err != nil {
+		log.Println(err.Error())
 		return
 	}
 
-	// get account from db with current payment
+	// already handled
+	if currentPayment.Confirmations >= 0 {
+		return
+	}
 
-	// account.transcation.confirmations = transaction.confirmations
+	amount, err := s.getUnspentByAddress(address, 0, mode)
+	if err != nil {
+		log.Println(err.Error())
+		return
+	}
 
-	// check if payAmount = unspent - account.remainder --> status confirming or paid
-	// if below --> partially_pay
-	// if more --> overpaid
-	// create new transaction state
-	// send notification to backend
+	currentPayment.Confirmations = 0
+	amountReceived := amount.Sub(amount, &currentPayment.Account.Remainder.Int)
+	var diff = currentPayment.CurrentPaymentState.PayAmount.Cmp(amountReceived)
+
+	newState := model.PaymentState{
+		Base:           model.Base{ID: uuid.New()},
+		PayAmount:      currentPayment.CurrentPaymentState.PayAmount,
+		AmountReceived: model.NewBigInt(amountReceived),
+		PaymentID:      currentPayment.CurrentPaymentState.PaymentID,
+	}
+
+	if diff > 0 {
+		newState.StateName = enum.PartiallyPaid
+	} else {
+		newState.StateName = enum.Paid
+	}
+
+	currentPayment.PaymentStates = append(currentPayment.PaymentStates, newState)
+
+	currentPayment.CurrentPaymentState = newState
+	currentPayment.CurrentPaymentStateId = &newState.ID
+
+	err = s.paymentRepository.Update(currentPayment)
+	if err != nil {
+		log.Println(err.Error())
+		return
+	}
+
+	//TODO: send notification to backend
 }
 
 func (s *bitcoinService) getTransaction(txId string, mode enum.Mode) (*btcjson.GetTransactionResult, error) {
@@ -167,7 +204,7 @@ func (s *bitcoinService) getTransaction(txId string, mode enum.Mode) (*btcjson.G
 	if err != nil {
 		return nil, err
 	}
-	hash, err := chainhash.NewHash([]byte(txId))
+	hash, err := chainhash.NewHashFromStr(txId)
 	if err != nil {
 		return nil, err
 	}
@@ -178,25 +215,29 @@ func (s *bitcoinService) getTransaction(txId string, mode enum.Mode) (*btcjson.G
 	return transaction, nil
 }
 
-func (s *bitcoinService) getReceivedByAddress(address string, minConf int, mode enum.Mode) (*big.Int, error) {
+func (s *bitcoinService) getUnspentByAddress(address string, minConf int, mode enum.Mode) (*big.Int, error) {
 	client, err := s.getClientByMode(mode)
 	if err != nil {
 		return nil, err
 	}
 
-	//TODO: change to listunspendminmay
-	client.ListUnspentMinMaxAddresses()
-	//TODO dynamic chaincfg
+	//TODO: make &chaincfg.RegressionNetParams dynamic
 	decodedAddress, err := btcutil.DecodeAddress(address, &chaincfg.RegressionNetParams)
 	if err != nil {
 		return nil, err
 	}
-	amount, err := client.GetReceivedByAddressMinConf(decodedAddress, minConf)
+
+	unspentList, err := client.ListUnspentMinMaxAddresses(minConf, 9999999, []btcutil.Address{decodedAddress})
 	if err != nil {
 		return nil, err
 	}
 
-	return s.convertBtcToSatoshi(amount.ToBTC()), nil
+	var amount float64
+	for _, unspent := range unspentList {
+		amount = amount + unspent.Amount
+	}
+
+	return s.convertBtcToSatoshi(amount), nil
 }
 
 func (s *bitcoinService) createBitcoinTestClient() (*rpcclient.Client, error) {

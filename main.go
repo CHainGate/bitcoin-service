@@ -27,7 +27,7 @@ func main() {
 		fmt.Println(err)
 	}
 
-	NotificationApiService := service.NewNotificationApiService()
+	NotificationApiService := service.NewNotificationApiService(bitcoinService)
 	NotificationApiController := openApi.NewNotificationApiController(NotificationApiService)
 
 	PaymentApiService := service.NewPaymentApiService(bitcoinService)
