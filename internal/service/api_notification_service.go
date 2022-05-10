@@ -35,7 +35,7 @@ func NewNotificationApiService(bitcoinService IBitcoinService) openApi.Notificat
 func (s *NotificationApiService) BlockNotify(ctx context.Context, blockHash string) (openApi.ImplResponse, error) {
 	//TODO: free used accounts if no payment received after maybe 1h??
 	//TODO: add mode to openapi query
-
+	s.bitcoinService.HandleBlockNotify(blockHash, enum.Test)
 	fmt.Println(blockHash)
 	return openApi.Response(http.StatusNotImplemented, nil), errors.New("BlockNotify method not implemented")
 }
@@ -43,7 +43,7 @@ func (s *NotificationApiService) BlockNotify(ctx context.Context, blockHash stri
 // WalletNotify - New wallet notification from Bitcoin Node
 func (s *NotificationApiService) WalletNotify(ctx context.Context, txId string) (openApi.ImplResponse, error) {
 	//TODO: add mode to openapi query
-	s.bitcoinService.handleWalletNotify(txId, enum.Test)
+	s.bitcoinService.HandleWalletNotify(txId, enum.Test)
 
 	return openApi.Response(http.StatusOK, nil), nil
 }

@@ -44,10 +44,12 @@ type Payment struct {
 type PaymentState struct {
 	Base
 	/*	AccountID      uuid.UUID `gorm:"type:uuid;"`*/
-	PayAmount      *BigInt `gorm:"type:numeric(30);default:0"`
-	AmountReceived *BigInt `gorm:"type:numeric(30);default:0"`
-	StateName      enum.State
-	PaymentID      uuid.UUID `gorm:"type:uuid"`
+	PayAmount                *BigInt `gorm:"type:numeric(30);default:0"`
+	AmountReceived           *BigInt `gorm:"type:numeric(30);default:0"`
+	StateName                enum.State
+	PaymentID                uuid.UUID `gorm:"type:uuid"`
+	TransactionID            string
+	TransactionConfirmations int64
 }
 
 type BigInt struct {

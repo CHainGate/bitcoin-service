@@ -8,6 +8,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"log"
 	"math/big"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -24,8 +25,9 @@ import (
 )
 
 type IBitcoinService interface {
-	createNewPayment(paymentRequest openApi.PaymentRequestDto) (*model.Payment, error)
-	handleWalletNotify(txId string, mode enum.Mode)
+	CreateNewPayment(paymentRequest openApi.PaymentRequestDto) (*model.Payment, error)
+	HandleWalletNotify(txId string, mode enum.Mode)
+	HandleBlockNotify(blockHash string, mode enum.Mode)
 }
 
 type bitcoinService struct {
@@ -53,7 +55,7 @@ func NewBitcoinService(
 	return s, nil
 }
 
-func (s *bitcoinService) createNewPayment(paymentRequest openApi.PaymentRequestDto) (*model.Payment, error) {
+func (s *bitcoinService) CreateNewPayment(paymentRequest openApi.PaymentRequestDto) (*model.Payment, error) {
 	mode, ok := enum.ParseStringToModeEnum(paymentRequest.Mode)
 	if !ok {
 		return nil, errors.New("wrong mode")
@@ -102,42 +104,7 @@ func (s *bitcoinService) createNewPayment(paymentRequest openApi.PaymentRequestD
 	return &payment, nil
 }
 
-func (s *bitcoinService) sendToAddress(account string, mode enum.Mode) error {
-	client, err := s.getClientByMode(mode)
-	if err != nil {
-		//return nil, err
-	}
-
-	address, err := json.Marshal("mrdhfyD6AKtfKeok78NPoAJrudCdzAd8G6")
-	if err != nil {
-		fmt.Println(err)
-	}
-	amount, err := json.Marshal(btcutil.Amount(5234).ToBTC())
-	if err != nil {
-		fmt.Println(err)
-	}
-	comment, err := json.Marshal("")
-	if err != nil {
-		fmt.Println(err)
-	}
-	commentTo, err := json.Marshal("")
-	if err != nil {
-		fmt.Println(err)
-	}
-	subtractfeefromamount, err := json.Marshal(btcjson.Bool(true))
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	result, err := client.RawRequest("sendtoaddress", []json.RawMessage{address, amount, comment, commentTo, subtractfeefromamount})
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println(result.MarshalJSON())
-	return nil
-}
-
-func (s *bitcoinService) handleWalletNotify(txId string, mode enum.Mode) {
+func (s *bitcoinService) HandleWalletNotify(txId string, mode enum.Mode) {
 	transaction, err := s.getTransaction(txId, mode)
 	if err != nil {
 		log.Println(err.Error())
@@ -199,6 +166,55 @@ func (s *bitcoinService) handleWalletNotify(txId string, mode enum.Mode) {
 	//TODO: send notification to backend
 }
 
+func (s *bitcoinService) HandleBlockNotify(blockHash string, mode enum.Mode) {
+
+	s.checkPayments(mode)
+
+	s.checkOutgoingTransactions(mode)
+
+	// TODO: if this runes parallel with the other jobs we need to be careful
+	// maybe open transactions where time.now() - created <= 0
+	s.checkForExpiredTransactions()
+}
+
+func (s *bitcoinService) sendToAddress(address string, amount *big.Int, mode enum.Mode) (string, error) {
+	client, err := s.getClientByMode(mode)
+	if err != nil {
+		return "", err
+	}
+
+	addressAsJson, err := json.Marshal(address)
+	if err != nil {
+		return "", err
+	}
+
+	amountAsJson, err := json.Marshal(btcutil.Amount(amount.Int64()).ToBTC())
+	if err != nil {
+		return "", err
+	}
+
+	subtractFeeFromAmount, err := json.Marshal(btcjson.Bool(true))
+	if err != nil {
+		return "", err
+	}
+
+	var comment []byte
+	var commentTo []byte
+	result, err := client.RawRequest("sendtoaddress", []json.RawMessage{addressAsJson, amountAsJson, comment, commentTo, subtractFeeFromAmount})
+	if err != nil {
+		return "", err
+	}
+
+	txId, err := result.MarshalJSON()
+	if err != nil {
+		return "", err
+	}
+
+	cleanTxId := strings.Trim(string(txId), "\"")
+
+	return cleanTxId, nil
+}
+
 func (s *bitcoinService) getTransaction(txId string, mode enum.Mode) (*btcjson.GetTransactionResult, error) {
 	client, err := s.getClientByMode(mode)
 	if err != nil {
@@ -240,38 +256,6 @@ func (s *bitcoinService) getUnspentByAddress(address string, minConf int, mode e
 	return s.convertBtcToSatoshi(amount), nil
 }
 
-func (s *bitcoinService) createBitcoinTestClient() (*rpcclient.Client, error) {
-	connCfg := &rpcclient.ConnConfig{
-		Host:         utils.Opts.BitcoinTestHost,
-		User:         utils.Opts.BitcoinTestUser,
-		Pass:         utils.Opts.BitcoinTestPass,
-		HTTPPostMode: true, // Bitcoin core only supports HTTP POST mode
-		DisableTLS:   true, // Bitcoin core does not provide TLS by default
-	}
-	client, err := rpcclient.New(connCfg, nil)
-	if err != nil {
-		return nil, err
-	}
-	//defer client.Shutdown()
-	return client, nil
-}
-
-func (s *bitcoinService) createBitcoinMainClient() (*rpcclient.Client, error) {
-	connCfg := &rpcclient.ConnConfig{
-		Host:         utils.Opts.BitcoinMainHost,
-		User:         utils.Opts.BitcoinMainUser,
-		Pass:         utils.Opts.BitcoinMainPass,
-		HTTPPostMode: true, // Bitcoin core only supports HTTP POST mode
-		DisableTLS:   true, // Bitcoin core does not provide TLS by default
-	}
-	client, err := rpcclient.New(connCfg, nil)
-	if err != nil {
-		return nil, err
-	}
-	//defer client.Shutdown()
-	return client, nil
-}
-
 func (s *bitcoinService) getFreeAccount(mode enum.Mode) (*model.Account, error) {
 	client, err := s.getClientByMode(mode)
 	if err != nil {
@@ -308,6 +292,132 @@ func (s *bitcoinService) getFreeAccount(mode enum.Mode) (*model.Account, error) 
 	return freeAccount, nil
 }
 
+func (s *bitcoinService) checkPayments(mode enum.Mode) {
+	payments, err := s.paymentRepository.FindOpenPaidPayments()
+	if err != nil {
+		return
+	}
+
+	for _, payment := range payments {
+		amount, err := s.getUnspentByAddress(payment.Account.Address, 6, mode)
+		if err != nil {
+			return
+		}
+
+		amountReceived := amount.Sub(amount, &payment.Account.Remainder.Int)
+		var diff = payment.CurrentPaymentState.PayAmount.Cmp(amountReceived)
+
+		if diff > 0 {
+			return // not enough
+		}
+
+		confirmedState := model.PaymentState{
+			Base:           model.Base{ID: uuid.New()},
+			PayAmount:      payment.CurrentPaymentState.PayAmount,
+			AmountReceived: model.NewBigInt(amountReceived),
+			StateName:      enum.Confirmed,
+		}
+
+		payment.Confirmations = 6
+		payment.CurrentPaymentStateId = &confirmedState.ID
+		payment.CurrentPaymentState = confirmedState
+		payment.PaymentStates = append(payment.PaymentStates, confirmedState)
+
+		//TODO: update backend (confirmed)
+
+		err = s.paymentRepository.Update(&payment)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		//TODO: if multiple blocknotify at the same time we send multiple times, but should in reality never happen
+		// sendToAddress
+		txId, err := s.sendToAddress(payment.UserWallet, &payment.CurrentPaymentState.PayAmount.Int, mode)
+		if err != nil {
+			return
+		}
+
+		sentState := model.PaymentState{
+			Base:                     model.Base{ID: uuid.New()},
+			PayAmount:                payment.CurrentPaymentState.PayAmount,
+			AmountReceived:           model.NewBigInt(amountReceived),
+			StateName:                enum.Forwarded,
+			TransactionID:            txId,
+			TransactionConfirmations: 0,
+		}
+
+		payment.CurrentPaymentStateId = &sentState.ID
+		payment.CurrentPaymentState = sentState
+		payment.PaymentStates = append(payment.PaymentStates, sentState)
+
+		//TODO: update backend (sent)
+
+		err = s.paymentRepository.Update(&payment)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+}
+
+func (s *bitcoinService) checkOutgoingTransactions(mode enum.Mode) {
+	payments, err := s.paymentRepository.FindOpenForwardedPayments()
+	if err != nil {
+		return
+	}
+
+	for _, payment := range payments {
+		transaction, err := s.getTransaction(payment.CurrentPaymentState.TransactionID, mode)
+		if err != nil {
+			return
+		}
+
+		if transaction.Confirmations >= 6 {
+			finishState := model.PaymentState{
+				Base:                     model.Base{ID: uuid.New()},
+				PayAmount:                payment.CurrentPaymentState.PayAmount,
+				AmountReceived:           payment.CurrentPaymentState.AmountReceived,
+				StateName:                enum.Finished,
+				TransactionID:            payment.CurrentPaymentState.TransactionID,
+				TransactionConfirmations: transaction.Confirmations,
+			}
+			payment.CurrentPaymentStateId = &finishState.ID
+			payment.CurrentPaymentState = finishState
+			payment.PaymentStates = append(payment.PaymentStates, finishState)
+
+			//TODO: update backend (finished)
+
+			err := s.paymentRepository.Update(&payment)
+			if err != nil {
+				return
+			}
+		}
+	}
+}
+
+func (s *bitcoinService) checkForExpiredTransactions() {
+	payments, err := s.paymentRepository.FindInactivePayments()
+	if err != nil {
+		return
+	}
+
+	for _, payment := range payments {
+		failedState := model.PaymentState{
+			Base:           model.Base{ID: uuid.New()},
+			PayAmount:      payment.CurrentPaymentState.PayAmount,
+			AmountReceived: payment.CurrentPaymentState.AmountReceived,
+			PaymentID:      payment.CurrentPaymentState.PaymentID,
+			StateName:      enum.Expired,
+		}
+		payment.CurrentPaymentStateId = &failedState.ID
+		payment.CurrentPaymentState = failedState
+		payment.PaymentStates = append(payment.PaymentStates, failedState)
+
+		// todo: update backend
+
+		s.paymentRepository.Update(&payment)
+	}
+}
+
 func (s *bitcoinService) getExchangeRate(priceAmount float64, priceCurrency enum.FiatCurrency) (float64, error) {
 	amount := fmt.Sprintf("%g", priceAmount)
 	srcCurrency := priceCurrency.String()
@@ -325,6 +435,17 @@ func (s *bitcoinService) getExchangeRate(priceAmount float64, priceCurrency enum
 	return *resp.Price, nil
 }
 
+func (s *bitcoinService) convertBtcToSatoshi(val float64) *big.Int {
+	bigVal := new(big.Float)
+	bigVal.SetFloat64(val)
+	balance := big.NewFloat(0).Mul(bigVal, big.NewFloat(100000000))
+	final, accur := balance.Int(nil)
+	if accur == big.Below {
+		final.Add(final, big.NewInt(1))
+	}
+	return final
+}
+
 func (s *bitcoinService) getClientByMode(mode enum.Mode) (*rpcclient.Client, error) {
 	switch mode {
 	case enum.Test:
@@ -336,13 +457,34 @@ func (s *bitcoinService) getClientByMode(mode enum.Mode) (*rpcclient.Client, err
 	}
 }
 
-func (s *bitcoinService) convertBtcToSatoshi(val float64) *big.Int {
-	bigVal := new(big.Float)
-	bigVal.SetFloat64(val)
-	balance := big.NewFloat(0).Mul(bigVal, big.NewFloat(100000000))
-	final, accur := balance.Int(nil)
-	if accur == big.Below {
-		final.Add(final, big.NewInt(1))
+func (s *bitcoinService) createBitcoinTestClient() (*rpcclient.Client, error) {
+	connCfg := &rpcclient.ConnConfig{
+		Host:         utils.Opts.BitcoinTestHost,
+		User:         utils.Opts.BitcoinTestUser,
+		Pass:         utils.Opts.BitcoinTestPass,
+		HTTPPostMode: true, // Bitcoin core only supports HTTP POST mode
+		DisableTLS:   true, // Bitcoin core does not provide TLS by default
 	}
-	return final
+	client, err := rpcclient.New(connCfg, nil)
+	if err != nil {
+		return nil, err
+	}
+	//defer client.Shutdown()
+	return client, nil
+}
+
+func (s *bitcoinService) createBitcoinMainClient() (*rpcclient.Client, error) {
+	connCfg := &rpcclient.ConnConfig{
+		Host:         utils.Opts.BitcoinMainHost,
+		User:         utils.Opts.BitcoinMainUser,
+		Pass:         utils.Opts.BitcoinMainPass,
+		HTTPPostMode: true, // Bitcoin core only supports HTTP POST mode
+		DisableTLS:   true, // Bitcoin core does not provide TLS by default
+	}
+	client, err := rpcclient.New(connCfg, nil)
+	if err != nil {
+		return nil, err
+	}
+	//defer client.Shutdown()
+	return client, nil
 }

@@ -32,7 +32,7 @@ func NewPaymentApiService(bitcoinService IBitcoinService) openApi.PaymentApiServ
 
 // CreatePayment - create new payment
 func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequestDto openApi.PaymentRequestDto) (openApi.ImplResponse, error) {
-	payment, err := s.bitcoinService.createNewPayment(paymentRequestDto)
+	payment, err := s.bitcoinService.CreateNewPayment(paymentRequestDto)
 	if err != nil {
 		return openApi.Response(http.StatusBadRequest, nil), err
 	}
