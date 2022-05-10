@@ -11,8 +11,9 @@ goimports -w .
  ```
 
 ##Bitcoin regtest
-Setup Guide: https://bitcointalk.org/index.php?topic=5268794.0 \
-New rpc now **18443**
+Setup Guide: 
+- https://bitcointalk.org/index.php?topic=5268794.0 \
+- https://olivermouse.wordpress.com/2018/01/13/connecting-multiple-bitcoin-core-nodes-regtest/
 
 Default directory in windows: %APPDATA%\Bitcoin
 
