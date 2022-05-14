@@ -13,6 +13,7 @@ type accountRepository struct {
 
 type IAccountRepository interface {
 	FindUnused() (*model.Account, error)
+	FindByAddress(address string) (*model.Account, error)
 	Create(account *model.Account) error
 	Update(account *model.Account) error
 }
@@ -31,6 +32,15 @@ func (r *accountRepository) FindUnused() (*model.Account, error) {
 		return nil, result.Error
 	}
 	return &unusedAccount, nil
+}
+
+func (r *accountRepository) FindByAddress(address string) (*model.Account, error) {
+	var account model.Account
+	result := r.DB.Preload("Payments.CurrentPaymentState").Where("address = ?", address).Find(&account)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &account, nil
 }
 
 func (r *accountRepository) Create(account *model.Account) error {

@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,9 +14,7 @@ import (
 	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/CHainGate/bitcoin-service/internal/model"
 	"github.com/CHainGate/bitcoin-service/internal/repository"
-	"github.com/CHainGate/bitcoin-service/internal/utils"
 	"github.com/CHainGate/bitcoin-service/openApi"
-	"github.com/CHainGate/bitcoin-service/proxyClientApi"
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/rpcclient"
@@ -31,6 +28,7 @@ type IBitcoinService interface {
 }
 
 type bitcoinService struct {
+	regtestClient     *rpcclient.Client
 	testClient        *rpcclient.Client
 	mainClient        *rpcclient.Client
 	accountRepository repository.IAccountRepository
@@ -60,12 +58,12 @@ func (s *bitcoinService) CreateNewPayment(paymentRequest openApi.PaymentRequestD
 		return nil, errors.New("wrong price currency")
 	}
 
-	payAmountInBtc, err := s.getExchangeRate(paymentRequest.PriceAmount, priceCurrency)
+	payAmountInBtc, err := getPayAmount(paymentRequest.PriceAmount, priceCurrency)
 	if err != nil {
 		return nil, err
 	}
 
-	payAmountInSatoshi := s.convertBtcToSatoshi(payAmountInBtc)
+	payAmountInSatoshi := convertBtcToSatoshi(payAmountInBtc)
 
 	account, err := s.getFreeAccount(mode)
 	if err != nil {
@@ -73,10 +71,11 @@ func (s *bitcoinService) CreateNewPayment(paymentRequest openApi.PaymentRequestD
 	}
 
 	state := model.PaymentState{
-		Base:           model.Base{ID: uuid.New()},
-		PayAmount:      model.NewBigInt(payAmountInSatoshi),
-		AmountReceived: model.NewBigInt(big.NewInt(0)),
-		StateName:      enum.Waiting,
+		Base:                     model.Base{ID: uuid.New()},
+		PayAmount:                model.NewBigInt(payAmountInSatoshi),
+		AmountReceived:           model.NewBigInt(big.NewInt(0)),
+		StateName:                enum.Waiting,
+		TransactionConfirmations: -1, //TODO: should be nullable, only state "sent" and "finished" have TransactionConfirmations
 	}
 
 	payment := model.Payment{
@@ -135,10 +134,11 @@ func (s *bitcoinService) HandleWalletNotify(txId string, mode enum.Mode) {
 	var diff = currentPayment.CurrentPaymentState.PayAmount.Cmp(amountReceived)
 
 	newState := model.PaymentState{
-		Base:           model.Base{ID: uuid.New()},
-		PayAmount:      currentPayment.CurrentPaymentState.PayAmount,
-		AmountReceived: model.NewBigInt(amountReceived),
-		PaymentID:      currentPayment.CurrentPaymentState.PaymentID,
+		Base:                     model.Base{ID: uuid.New()},
+		PayAmount:                currentPayment.CurrentPaymentState.PayAmount,
+		AmountReceived:           model.NewBigInt(amountReceived),
+		PaymentID:                currentPayment.CurrentPaymentState.PaymentID,
+		TransactionConfirmations: -1, //TODO: should be nullable, only state "sent" and "finished" have TransactionConfirmations
 	}
 
 	if diff > 0 {
@@ -232,8 +232,12 @@ func (s *bitcoinService) getUnspentByAddress(address string, minConf int, mode e
 		return nil, err
 	}
 
-	//TODO: make &chaincfg.RegressionNetParams dynamic
-	decodedAddress, err := btcutil.DecodeAddress(address, &chaincfg.RegressionNetParams)
+	params, err := s.getNetParams(client)
+	if err != nil {
+		return nil, err
+	}
+
+	decodedAddress, err := btcutil.DecodeAddress(address, params)
 	if err != nil {
 		return nil, err
 	}
@@ -248,21 +252,21 @@ func (s *bitcoinService) getUnspentByAddress(address string, minConf int, mode e
 		amount = amount + unspent.Amount
 	}
 
-	return s.convertBtcToSatoshi(amount), nil
+	return convertBtcToSatoshi(amount), nil
 }
 
 func (s *bitcoinService) getFreeAccount(mode enum.Mode) (*model.Account, error) {
-	client, err := s.getClientByMode(mode)
-	if err != nil {
-		return nil, err
-	}
-
 	freeAccount, err := s.accountRepository.FindUnused()
 	if err != nil {
 		return nil, err
 	}
 
 	if freeAccount == nil {
+		client, err := s.getClientByMode(mode)
+		if err != nil {
+			return nil, err
+		}
+
 		newAddress, err := client.GetNewAddress("")
 		if err != nil {
 			return nil, err
@@ -413,34 +417,6 @@ func (s *bitcoinService) checkForExpiredTransactions() {
 	}
 }
 
-func (s *bitcoinService) getExchangeRate(priceAmount float64, priceCurrency enum.FiatCurrency) (float64, error) {
-	amount := fmt.Sprintf("%g", priceAmount)
-	srcCurrency := priceCurrency.String()
-	dstCurrency := enum.BTC.String()
-	mode := enum.Main.String()
-
-	configuration := proxyClientApi.NewConfiguration()
-	configuration.Servers[0].URL = utils.Opts.ProxyBaseUrl
-	apiClient := proxyClientApi.NewAPIClient(configuration)
-	resp, _, err := apiClient.ConversionApi.GetPriceConversion(context.Background()).Amount(amount).SrcCurrency(srcCurrency).DstCurrency(dstCurrency).Mode(mode).Execute()
-	if err != nil {
-		return 0, err
-	}
-
-	return *resp.Price, nil
-}
-
-func (s *bitcoinService) convertBtcToSatoshi(val float64) *big.Int {
-	bigVal := new(big.Float)
-	bigVal.SetFloat64(val)
-	balance := big.NewFloat(0).Mul(bigVal, big.NewFloat(100000000))
-	final, accur := balance.Int(nil)
-	if accur == big.Below {
-		final.Add(final, big.NewInt(1))
-	}
-	return final
-}
-
 func (s *bitcoinService) getClientByMode(mode enum.Mode) (*rpcclient.Client, error) {
 	switch mode {
 	case enum.Test:
@@ -449,5 +425,23 @@ func (s *bitcoinService) getClientByMode(mode enum.Mode) (*rpcclient.Client, err
 		return s.mainClient, nil
 	default:
 		return nil, errors.New("mode not implemented")
+	}
+}
+
+func (s *bitcoinService) getNetParams(client *rpcclient.Client) (*chaincfg.Params, error) {
+	info, err := client.GetBlockChainInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	switch info.Chain {
+	case "regtest":
+		return &chaincfg.RegressionNetParams, nil
+	case "test":
+		return &chaincfg.TestNet3Params, nil
+	case "main":
+		return &chaincfg.MainNetParams, nil
+	default:
+		return nil, errors.New("net not available")
 	}
 }

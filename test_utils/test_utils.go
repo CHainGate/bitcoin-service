@@ -1,13 +1,18 @@
 package testutils
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/CHainGate/bitcoin-service/internal/repository"
 	"github.com/CHainGate/bitcoin-service/internal/utils"
+	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/rpcclient"
+	"github.com/btcsuite/btcutil"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"log"
+	"math/big"
+	"strings"
 	"time"
 )
 
@@ -222,6 +227,39 @@ func BitcoinNodeTestSetup(pool *dockertest.Pool) (*BitcoinNodeTestSetupResult, e
 	}
 	fmt.Println("buyer balance: ", balance2.ToBTC())*/
 	//defer client.Shutdown()
+}
+
+func SendToAddress(client *rpcclient.Client, address string, amount *big.Int) (string, error) {
+	addressAsJson, err := json.Marshal(address)
+	if err != nil {
+		return "", err
+	}
+
+	amountAsJson, err := json.Marshal(btcutil.Amount(amount.Int64()).ToBTC())
+	if err != nil {
+		return "", err
+	}
+
+	subtractFeeFromAmount, err := json.Marshal(btcjson.Bool(true))
+	if err != nil {
+		return "", err
+	}
+
+	var comment []byte
+	var commentTo []byte
+	result, err := client.RawRequest("sendtoaddress", []json.RawMessage{addressAsJson, amountAsJson, comment, commentTo, subtractFeeFromAmount})
+	if err != nil {
+		return "", err
+	}
+
+	txId, err := result.MarshalJSON()
+	if err != nil {
+		return "", err
+	}
+
+	cleanTxId := strings.Trim(string(txId), "\"")
+
+	return cleanTxId, nil
 }
 
 // pulls an image, creates a container based on it and runs it
