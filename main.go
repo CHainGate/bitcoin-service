@@ -21,11 +21,15 @@ func main() {
 	}
 
 	//TODO: initial reconciliation with blockchain data, maybe we missed some transactions
-
-	bitcoinService, err := service.NewBitcoinService(accountRepo, paymentRepo)
+	/*mainClient, err := service.CreateBitcoinMainClient()
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
+	}*/
+	testClient, err := service.CreateBitcoinTestClient()
+	if err != nil {
+		return
 	}
+	bitcoinService := service.NewBitcoinService(accountRepo, paymentRepo, testClient, nil)
 
 	NotificationApiService := service.NewNotificationApiService(bitcoinService)
 	NotificationApiController := openApi.NewNotificationApiController(NotificationApiService)

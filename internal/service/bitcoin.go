@@ -311,10 +311,11 @@ func (s *bitcoinService) checkPayments(mode enum.Mode) {
 		}
 
 		confirmedState := model.PaymentState{
-			Base:           model.Base{ID: uuid.New()},
-			PayAmount:      payment.CurrentPaymentState.PayAmount,
-			AmountReceived: model.NewBigInt(amountReceived),
-			StateName:      enum.Confirmed,
+			Base:                     model.Base{ID: uuid.New()},
+			PayAmount:                payment.CurrentPaymentState.PayAmount,
+			AmountReceived:           model.NewBigInt(amountReceived),
+			StateName:                enum.Confirmed,
+			TransactionConfirmations: -1, //TODO: should be nullable, only state "sent" and "finished" have TransactionConfirmations
 		}
 
 		payment.Confirmations = 6
@@ -329,9 +330,11 @@ func (s *bitcoinService) checkPayments(mode enum.Mode) {
 			fmt.Println(err)
 		}
 
+		// only forward 99%. 1% chaingate fee
+		/*mul := big.NewInt(0).Mul(&payment.CurrentPaymentState.PayAmount.Int, big.NewInt(99))
+		forwardAmount := mul.Div(mul, big.NewInt(100))*/
 		//TODO: if multiple blocknotify at the same time we send multiple times, but should in reality never happen
-		// sendToAddress
-		txId, err := s.sendToAddress(payment.UserWallet, &payment.CurrentPaymentState.PayAmount.Int, mode)
+		txId, err := s.sendToAddress(payment.UserWallet, big.NewInt(336897), mode)
 		if err != nil {
 			return
 		}
@@ -382,10 +385,15 @@ func (s *bitcoinService) checkOutgoingTransactions(mode enum.Mode) {
 			payment.CurrentPaymentStateId = &finishState.ID
 			payment.CurrentPaymentState = finishState
 			payment.PaymentStates = append(payment.PaymentStates, finishState)
+			payment.Account.Used = false
 
 			//TODO: update backend (finished)
 
-			err := s.paymentRepository.Update(&payment)
+			err = s.paymentRepository.Update(&payment)
+			if err != nil {
+				return
+			}
+			err = s.accountRepository.Update(payment.Account)
 			if err != nil {
 				return
 			}

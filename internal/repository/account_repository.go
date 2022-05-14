@@ -36,7 +36,11 @@ func (r *accountRepository) FindUnused() (*model.Account, error) {
 
 func (r *accountRepository) FindByAddress(address string) (*model.Account, error) {
 	var account model.Account
-	result := r.DB.Preload("Payments.CurrentPaymentState").Where("address = ?", address).Find(&account)
+	result := r.DB.
+		Preload("Payments.CurrentPaymentState").
+		Preload("Payments.PaymentStates").
+		Where("address = ?", address).
+		Find(&account)
 	if result.Error != nil {
 		return nil, result.Error
 	}
