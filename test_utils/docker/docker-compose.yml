@@ -1,0 +1,34 @@
+version: '3'
+services:
+  miner:
+    build: ""
+    ports:
+      - "18400:18443"
+      - "18500:18444"
+    expose:
+      - "18444"
+    command: ["-addnode=node1:18444", "-addnode=node2:18444"]
+  buyer:
+    build: ""
+    ports:
+      - "18401:18443"
+      - "18501:18444"
+    expose:
+      - "18444"
+    command: ["-addnode=miner:18444", "-addnode=node2:18444"]
+  merchant:
+    build: ""
+    ports:
+      - "18402:18443"
+      - "18502:18444"
+    expose:
+      - "18444"
+    command: ["-addnode=node1:18444", "-addnode=miner:18444"]
+  chaingate:
+    build: ""
+    ports:
+      - "18402:18443"
+      - "18502:18444"
+    expose:
+      - "18444"
+    command: ["-addnode=node1:18444", "-addnode=miner:18444"]

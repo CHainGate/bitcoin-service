@@ -53,3 +53,14 @@ Send btc
 ```
 .\bitcoin-cli.exe -regtest sendtoaddress "bcrt1qch7g607n2sxnc2e229uc2a0gcf06s5zfxyqqgk" 0.1 "drinks" "room77" true
 ```
+
+
+
+```
+.\bitcoind.exe -regtest -fallbackfee='0.001' -datadir=D:\bitcoin\regtest\network
+.\bitcoind.exe -regtest -fallbackfee='0.001' -datadir=D:\bitcoin\regtest\merchant
+.\bitcoind.exe -regtest -fallbackfee='0.001' -datadir=D:\bitcoin\regtest\chaingate
+.\bitcoind.exe -regtest -fallbackfee='0.001' -datadir=D:\bitcoin\regtest\buyer
+
+.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\buyer sendtoaddress "bcrt1qud0lp7q3gg2d96uhxj7aa9ee928x8t2zkqnt2s" 0.1
+```

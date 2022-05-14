@@ -40,19 +40,14 @@ type bitcoinService struct {
 func NewBitcoinService(
 	accountRepository repository.IAccountRepository,
 	paymentRepository repository.IPaymentRepository,
-) (IBitcoinService, error) {
-	s := &bitcoinService{accountRepository: accountRepository, paymentRepository: paymentRepository}
-	testClient, err := s.createBitcoinTestClient()
-	if err != nil {
-		return nil, err
-	}
-	/*	mainClient, err := s.createBitcoinMainClient()
-		if err != nil {
-			return nil, err
-		}*/
-	s.testClient = testClient
-	//s.mainClient = mainClient
-	return s, nil
+	testClient *rpcclient.Client,
+	mainClient *rpcclient.Client,
+) IBitcoinService {
+	return &bitcoinService{
+		accountRepository: accountRepository,
+		paymentRepository: paymentRepository,
+		testClient:        testClient,
+		mainClient:        mainClient}
 }
 
 func (s *bitcoinService) CreateNewPayment(paymentRequest openApi.PaymentRequestDto) (*model.Payment, error) {
@@ -455,36 +450,4 @@ func (s *bitcoinService) getClientByMode(mode enum.Mode) (*rpcclient.Client, err
 	default:
 		return nil, errors.New("mode not implemented")
 	}
-}
-
-func (s *bitcoinService) createBitcoinTestClient() (*rpcclient.Client, error) {
-	connCfg := &rpcclient.ConnConfig{
-		Host:         utils.Opts.BitcoinTestHost,
-		User:         utils.Opts.BitcoinTestUser,
-		Pass:         utils.Opts.BitcoinTestPass,
-		HTTPPostMode: true, // Bitcoin core only supports HTTP POST mode
-		DisableTLS:   true, // Bitcoin core does not provide TLS by default
-	}
-	client, err := rpcclient.New(connCfg, nil)
-	if err != nil {
-		return nil, err
-	}
-	//defer client.Shutdown()
-	return client, nil
-}
-
-func (s *bitcoinService) createBitcoinMainClient() (*rpcclient.Client, error) {
-	connCfg := &rpcclient.ConnConfig{
-		Host:         utils.Opts.BitcoinMainHost,
-		User:         utils.Opts.BitcoinMainUser,
-		Pass:         utils.Opts.BitcoinMainPass,
-		HTTPPostMode: true, // Bitcoin core only supports HTTP POST mode
-		DisableTLS:   true, // Bitcoin core does not provide TLS by default
-	}
-	client, err := rpcclient.New(connCfg, nil)
-	if err != nil {
-		return nil, err
-	}
-	//defer client.Shutdown()
-	return client, nil
 }
