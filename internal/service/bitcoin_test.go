@@ -84,13 +84,13 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	// You can't defer this because os.Exit doesn't care for defer
-	if err := pool.Purge(bitcoinSetupResult.ChaingateRessource); err != nil {
+	if err = pool.Purge(bitcoinSetupResult.ChaingateRessource); err != nil {
 		log.Fatalf("Could not purge resource: %s", err)
 	}
-	if err := pool.Purge(bitcoinSetupResult.BuyerRessource); err != nil {
+	if err = pool.Purge(bitcoinSetupResult.BuyerRessource); err != nil {
 		log.Fatalf("Could not purge resource: %s", err)
 	}
-	if err := pool.Purge(dbRessource); err != nil {
+	if err = pool.Purge(dbRessource); err != nil {
 		log.Fatalf("Could not purge resource: %s", err)
 	}
 	os.Exit(code)
@@ -211,7 +211,7 @@ func TestBitcoinService_HandleBlockNotify(t *testing.T) {
 	var maxTries int64
 	maxTries = 1000000 //default
 	for i := 0; i < 6; i++ {
-		_, err := buyerClient.GenerateToAddress(1, address, &maxTries)
+		_, err = buyerClient.GenerateToAddress(1, address, &maxTries)
 		if err != nil {
 			return
 		}

@@ -15,9 +15,11 @@ type IPaymentRepository interface {
 	Create(account *model.Payment) error
 	FindCurrentPaymentByAddress(address string) (*model.Payment, error)
 	Update(payment *model.Payment) error
-	FindOpenPaidPayments() ([]model.Payment, error)
-	FindOpenForwardedPayments() ([]model.Payment, error)
-	FindInactivePayments() ([]model.Payment, error)
+	FindPaidPayments() ([]model.Payment, error)
+	FindConfirmedPayments() ([]model.Payment, error)
+	FindForwardedPayments() ([]model.Payment, error)
+	FindExpiredPayments() ([]model.Payment, error)
+	FindAllOutgoingTransactionIdsByUserWallet(userWallet string) ([]string, error)
 }
 
 func NewPaymentRepository(db *gorm.DB) IPaymentRepository {
@@ -54,7 +56,7 @@ func (r *paymentRepository) FindCurrentPaymentByAddress(address string) (*model.
 	return &payment, nil
 }
 
-func (r *paymentRepository) FindOpenPaidPayments() ([]model.Payment, error) {
+func (r *paymentRepository) FindPaidPayments() ([]model.Payment, error) {
 	var payments []model.Payment
 	result := r.DB.
 		Preload("Account").
@@ -68,7 +70,21 @@ func (r *paymentRepository) FindOpenPaidPayments() ([]model.Payment, error) {
 	return payments, nil
 }
 
-func (r *paymentRepository) FindOpenForwardedPayments() ([]model.Payment, error) {
+func (r *paymentRepository) FindConfirmedPayments() ([]model.Payment, error) {
+	var payments []model.Payment
+	result := r.DB.
+		Preload("Account").
+		Joins("CurrentPaymentState").
+		Where("\"CurrentPaymentState\".\"state_name\" = ?", enum.Confirmed).
+		Find(&payments)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return payments, nil
+}
+
+func (r *paymentRepository) FindForwardedPayments() ([]model.Payment, error) {
 	var payments []model.Payment
 	result := r.DB.
 		Preload("Account").
@@ -82,8 +98,8 @@ func (r *paymentRepository) FindOpenForwardedPayments() ([]model.Payment, error)
 	return payments, nil
 }
 
-func (r *paymentRepository) FindInactivePayments() ([]model.Payment, error) {
-	t := time.Now().Add(time.Hour * -1)
+func (r *paymentRepository) FindExpiredPayments() ([]model.Payment, error) {
+	t := time.Now().Add(time.Minute * -15)
 	var payments []model.Payment
 	result := r.DB.
 		Preload("Account").
@@ -95,4 +111,18 @@ func (r *paymentRepository) FindInactivePayments() ([]model.Payment, error) {
 		return nil, result.Error
 	}
 	return payments, nil
+}
+
+func (r *paymentRepository) FindAllOutgoingTransactionIdsByUserWallet(userWallet string) ([]string, error) {
+	var txIds []string
+	result := r.DB.
+		Table("payments").
+		Select("payment_states.transaction_id").
+		Joins("join payment_states on payment_states.payment_id = payments.id").
+		Where("payments.user_wallet = ? AND payment_states.transaction_id != ''", userWallet).Scan(&txIds)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return txIds, nil
 }

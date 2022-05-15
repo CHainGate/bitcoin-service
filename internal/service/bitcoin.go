@@ -3,7 +3,6 @@ package service
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/CHainGate/bitcoin-service/internal/utils"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"log"
@@ -17,7 +16,6 @@ import (
 	"github.com/CHainGate/bitcoin-service/internal/repository"
 	"github.com/CHainGate/bitcoin-service/openApi"
 	"github.com/btcsuite/btcd/btcjson"
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcutil"
 )
@@ -102,7 +100,7 @@ func (s *bitcoinService) CreateNewPayment(paymentRequest openApi.PaymentRequestD
 func (s *bitcoinService) HandleWalletNotify(txId string, mode enum.Mode) {
 	transaction, err := s.getTransaction(txId, mode)
 	if err != nil {
-		log.Println(err.Error())
+		log.Println(err)
 		return
 	}
 
@@ -115,18 +113,18 @@ func (s *bitcoinService) HandleWalletNotify(txId string, mode enum.Mode) {
 	address := transaction.Details[0].Address
 	currentPayment, err := s.paymentRepository.FindCurrentPaymentByAddress(address)
 	if err != nil {
-		log.Println(err.Error())
+		log.Println(err)
 		return
 	}
 
-	// already handled
 	if currentPayment.Confirmations >= 0 {
+		log.Println("payment already handled")
 		return
 	}
 
 	amount, err := s.getUnspentByAddress(address, 0, mode)
 	if err != nil {
-		log.Println(err.Error())
+		log.Println(err)
 		return
 	}
 
@@ -153,24 +151,220 @@ func (s *bitcoinService) HandleWalletNotify(txId string, mode enum.Mode) {
 	currentPayment.CurrentPaymentState = newState
 	currentPayment.CurrentPaymentStateId = &newState.ID
 
+	//TODO: send notification to backend
+
 	err = s.paymentRepository.Update(currentPayment)
 	if err != nil {
-		log.Println(err.Error())
+		log.Println(err)
 		return
 	}
-
-	//TODO: send notification to backend
 }
 
 func (s *bitcoinService) HandleBlockNotify(blockHash string, mode enum.Mode) {
-
-	s.checkPayments(mode)
-
-	s.checkOutgoingTransactions(mode)
+	s.handlePaidPayments(mode)
+	s.handleConfirmedPayments(mode)
+	s.handleForwardedTransactions(mode)
 
 	// TODO: if this runes parallel with the other jobs we need to be careful
 	// maybe open transactions where time.now() - created <= 0
-	s.checkForExpiredTransactions()
+	s.handleExpiredTransactions(mode)
+}
+
+func (s *bitcoinService) handlePaidPayments(mode enum.Mode) {
+	payments, err := s.paymentRepository.FindPaidPayments()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	for _, payment := range payments {
+		amount, err := s.getUnspentByAddress(payment.Account.Address, 6, mode)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		amountReceived := amount.Sub(amount, &payment.Account.Remainder.Int)
+		var diff = payment.CurrentPaymentState.PayAmount.Cmp(amountReceived)
+
+		if diff > 0 {
+			log.Println("not enough paid")
+			return // not enough
+		}
+
+		confirmedState := model.PaymentState{
+			Base:                     model.Base{ID: uuid.New()},
+			PayAmount:                payment.CurrentPaymentState.PayAmount,
+			AmountReceived:           model.NewBigInt(amountReceived),
+			StateName:                enum.Confirmed,
+			TransactionConfirmations: -1, //TODO: should be nullable, only state "sent" and "finished" have TransactionConfirmations
+		}
+
+		payment.Confirmations = 6
+		payment.CurrentPaymentStateId = &confirmedState.ID
+		payment.CurrentPaymentState = confirmedState
+		payment.PaymentStates = append(payment.PaymentStates, confirmedState)
+
+		//TODO: update backend (confirmed)
+
+		err = s.paymentRepository.Update(&payment)
+		if err != nil {
+			log.Println(err)
+		}
+	}
+}
+
+func (s *bitcoinService) handleConfirmedPayments(mode enum.Mode) {
+	payments, err := s.paymentRepository.FindConfirmedPayments()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	for _, payment := range payments {
+		amount, err := s.getUnspentByAddress(payment.Account.Address, 6, mode)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		// should in theorie never happen
+		if payment.CurrentPaymentState.PayAmount.Cmp(amount) > 0 {
+			log.Println(err)
+			return
+		}
+
+		var txId string
+		if amount.Cmp(big.NewInt(0)) == 0 { // already sent
+			transactions, err := s.findMissingTransaction(payment.UserWallet, mode)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			amount = &payment.CurrentPaymentState.PayAmount.Int //set amount to previous payAmount because we already sent it
+			forwardAmount := calculateForwardAmount(&payment.CurrentPaymentState.PayAmount.Int)
+			forwardAmountInBtc := btcutil.Amount(forwardAmount.Int64()).ToBTC()
+			for _, tx := range transactions {
+				if forwardAmountInBtc == tx.amount+tx.fee {
+					txId = tx.txId
+					break
+				}
+			}
+		} else {
+			forwardAmount := calculateForwardAmount(&payment.CurrentPaymentState.PayAmount.Int)
+			//TODO: if multiple blocknotify at the same time we send multiple times, but should in reality never happen
+			txId, err = s.sendToAddress(payment.UserWallet, forwardAmount, mode)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+		}
+
+		sentState := model.PaymentState{
+			Base:                     model.Base{ID: uuid.New()},
+			PayAmount:                payment.CurrentPaymentState.PayAmount,
+			AmountReceived:           model.NewBigInt(amount),
+			StateName:                enum.Forwarded,
+			TransactionID:            txId,
+			TransactionConfirmations: 0,
+		}
+
+		payment.CurrentPaymentStateId = &sentState.ID
+		payment.CurrentPaymentState = sentState
+		payment.PaymentStates = append(payment.PaymentStates, sentState)
+
+		//TODO: update backend (sent)
+
+		err = s.paymentRepository.Update(&payment)
+		if err != nil {
+			log.Println(err)
+		}
+	}
+}
+
+func (s *bitcoinService) handleForwardedTransactions(mode enum.Mode) {
+	payments, err := s.paymentRepository.FindForwardedPayments()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	for _, payment := range payments {
+		transaction, err := s.getTransaction(payment.CurrentPaymentState.TransactionID, mode)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		if transaction.Confirmations >= 6 {
+			finishState := model.PaymentState{
+				Base:                     model.Base{ID: uuid.New()},
+				PayAmount:                payment.CurrentPaymentState.PayAmount,
+				AmountReceived:           payment.CurrentPaymentState.AmountReceived,
+				StateName:                enum.Finished,
+				TransactionID:            payment.CurrentPaymentState.TransactionID,
+				TransactionConfirmations: transaction.Confirmations,
+			}
+			payment.CurrentPaymentStateId = &finishState.ID
+			payment.CurrentPaymentState = finishState
+			payment.PaymentStates = append(payment.PaymentStates, finishState)
+			payment.Account.Used = false
+
+			//TODO: update backend (finished)
+
+			err = s.accountRepository.Update(payment.Account)
+			if err != nil {
+				return
+			}
+		}
+	}
+}
+
+func (s *bitcoinService) handleExpiredTransactions(mode enum.Mode) {
+	payments, err := s.paymentRepository.FindExpiredPayments()
+	if err != nil {
+		return
+	}
+
+	for _, payment := range payments {
+		amount, err := s.getUnspentByAddress(payment.Account.Address, 0, mode)
+		if err != nil {
+			return
+		}
+
+		var newState model.PaymentState
+
+		// he has paid but we did not get the notifications
+		if amount.Cmp(&payment.CurrentPaymentState.PayAmount.Int) >= 0 {
+			newState = model.PaymentState{
+				Base:           model.Base{ID: uuid.New()},
+				PayAmount:      payment.CurrentPaymentState.PayAmount,
+				AmountReceived: model.NewBigInt(amount),
+				PaymentID:      payment.CurrentPaymentState.PaymentID,
+				StateName:      enum.Paid,
+			}
+		} else {
+			newState = model.PaymentState{
+				Base:           model.Base{ID: uuid.New()},
+				PayAmount:      payment.CurrentPaymentState.PayAmount,
+				AmountReceived: payment.CurrentPaymentState.AmountReceived,
+				PaymentID:      payment.CurrentPaymentState.PaymentID,
+				StateName:      enum.Expired,
+			}
+		}
+
+		payment.CurrentPaymentStateId = &newState.ID
+		payment.CurrentPaymentState = newState
+		payment.PaymentStates = append(payment.PaymentStates, newState)
+
+		// todo: update backend
+
+		err = s.paymentRepository.Update(&payment)
+		if err != nil {
+			return
+		}
+	}
 }
 
 func (s *bitcoinService) sendToAddress(address string, amount *big.Int, mode enum.Mode) (string, error) {
@@ -242,7 +436,7 @@ func (s *bitcoinService) getUnspentByAddress(address string, minConf int, mode e
 		return nil, err
 	}
 
-	params, err := s.getNetParams(client)
+	params, err := getNetParams(client)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +451,7 @@ func (s *bitcoinService) getUnspentByAddress(address string, minConf int, mode e
 		return nil, err
 	}
 
-	var amount float64
+	amount := 0.0
 	for _, unspent := range unspentList {
 		amount = amount + unspent.Amount
 	}
@@ -301,138 +495,42 @@ func (s *bitcoinService) getFreeAccount(mode enum.Mode) (*model.Account, error) 
 	return freeAccount, nil
 }
 
-func (s *bitcoinService) checkPayments(mode enum.Mode) {
-	payments, err := s.paymentRepository.FindOpenPaidPayments()
-	if err != nil {
-		return
-	}
-
-	for _, payment := range payments {
-		amount, err := s.getUnspentByAddress(payment.Account.Address, 6, mode)
-		if err != nil {
-			return
-		}
-
-		amountReceived := amount.Sub(amount, &payment.Account.Remainder.Int)
-		var diff = payment.CurrentPaymentState.PayAmount.Cmp(amountReceived)
-
-		if diff > 0 {
-			return // not enough
-		}
-
-		confirmedState := model.PaymentState{
-			Base:                     model.Base{ID: uuid.New()},
-			PayAmount:                payment.CurrentPaymentState.PayAmount,
-			AmountReceived:           model.NewBigInt(amountReceived),
-			StateName:                enum.Confirmed,
-			TransactionConfirmations: -1, //TODO: should be nullable, only state "sent" and "finished" have TransactionConfirmations
-		}
-
-		payment.Confirmations = 6
-		payment.CurrentPaymentStateId = &confirmedState.ID
-		payment.CurrentPaymentState = confirmedState
-		payment.PaymentStates = append(payment.PaymentStates, confirmedState)
-
-		//TODO: update backend (confirmed)
-
-		err = s.paymentRepository.Update(&payment)
-		if err != nil {
-			fmt.Println(err)
-		}
-
-		// only forward 99%. 1% chaingate fee
-		/*mul := big.NewInt(0).Mul(&payment.CurrentPaymentState.PayAmount.Int, big.NewInt(99))
-		forwardAmount := mul.Div(mul, big.NewInt(100))*/
-		//TODO: if multiple blocknotify at the same time we send multiple times, but should in reality never happen
-		txId, err := s.sendToAddress(payment.UserWallet, big.NewInt(336897), mode)
-		if err != nil {
-			return
-		}
-
-		sentState := model.PaymentState{
-			Base:                     model.Base{ID: uuid.New()},
-			PayAmount:                payment.CurrentPaymentState.PayAmount,
-			AmountReceived:           model.NewBigInt(amountReceived),
-			StateName:                enum.Forwarded,
-			TransactionID:            txId,
-			TransactionConfirmations: 0,
-		}
-
-		payment.CurrentPaymentStateId = &sentState.ID
-		payment.CurrentPaymentState = sentState
-		payment.PaymentStates = append(payment.PaymentStates, sentState)
-
-		//TODO: update backend (sent)
-
-		err = s.paymentRepository.Update(&payment)
-		if err != nil {
-			fmt.Println(err)
-		}
-	}
+type recoverSentTransactionResult struct {
+	txId   string
+	amount float64
+	fee    float64
 }
 
-func (s *bitcoinService) checkOutgoingTransactions(mode enum.Mode) {
-	payments, err := s.paymentRepository.FindOpenForwardedPayments()
+func (s *bitcoinService) findMissingTransaction(userWallet string, mode enum.Mode) ([]recoverSentTransactionResult, error) {
+	client, err := s.getClientByMode(mode)
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	for _, payment := range payments {
-		transaction, err := s.getTransaction(payment.CurrentPaymentState.TransactionID, mode)
-		if err != nil {
-			return
-		}
-
-		if transaction.Confirmations >= 6 {
-			finishState := model.PaymentState{
-				Base:                     model.Base{ID: uuid.New()},
-				PayAmount:                payment.CurrentPaymentState.PayAmount,
-				AmountReceived:           payment.CurrentPaymentState.AmountReceived,
-				StateName:                enum.Finished,
-				TransactionID:            payment.CurrentPaymentState.TransactionID,
-				TransactionConfirmations: transaction.Confirmations,
-			}
-			payment.CurrentPaymentStateId = &finishState.ID
-			payment.CurrentPaymentState = finishState
-			payment.PaymentStates = append(payment.PaymentStates, finishState)
-			payment.Account.Used = false
-
-			//TODO: update backend (finished)
-
-			err = s.paymentRepository.Update(&payment)
-			if err != nil {
-				return
-			}
-			err = s.accountRepository.Update(payment.Account)
-			if err != nil {
-				return
-			}
-		}
-	}
-}
-
-func (s *bitcoinService) checkForExpiredTransactions() {
-	payments, err := s.paymentRepository.FindInactivePayments()
+	transactions, err := client.ListTransactions("*")
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	for _, payment := range payments {
-		failedState := model.PaymentState{
-			Base:           model.Base{ID: uuid.New()},
-			PayAmount:      payment.CurrentPaymentState.PayAmount,
-			AmountReceived: payment.CurrentPaymentState.AmountReceived,
-			PaymentID:      payment.CurrentPaymentState.PaymentID,
-			StateName:      enum.Expired,
+	txIds, err := s.paymentRepository.FindAllOutgoingTransactionIdsByUserWallet(userWallet)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []recoverSentTransactionResult
+	for _, transaction := range transactions {
+		if transaction.Category == "send" && transaction.Address == userWallet {
+			if !contains(txIds, transaction.TxID) {
+				result := recoverSentTransactionResult{
+					txId:   transaction.TxID,
+					amount: transaction.Amount,
+					fee:    *transaction.Fee,
+				}
+				results = append(results, result)
+			}
 		}
-		payment.CurrentPaymentStateId = &failedState.ID
-		payment.CurrentPaymentState = failedState
-		payment.PaymentStates = append(payment.PaymentStates, failedState)
-
-		// todo: update backend
-
-		s.paymentRepository.Update(&payment)
 	}
+	return results, nil
 }
 
 func (s *bitcoinService) getClientByMode(mode enum.Mode) (*rpcclient.Client, error) {
@@ -443,23 +541,5 @@ func (s *bitcoinService) getClientByMode(mode enum.Mode) (*rpcclient.Client, err
 		return s.mainClient, nil
 	default:
 		return nil, errors.New("mode not implemented")
-	}
-}
-
-func (s *bitcoinService) getNetParams(client *rpcclient.Client) (*chaincfg.Params, error) {
-	info, err := client.GetBlockChainInfo()
-	if err != nil {
-		return nil, err
-	}
-
-	switch info.Chain {
-	case "regtest":
-		return &chaincfg.RegressionNetParams, nil
-	case "test":
-		return &chaincfg.TestNet3Params, nil
-	case "main":
-		return &chaincfg.MainNetParams, nil
-	default:
-		return nil, errors.New("net not available")
 	}
 }

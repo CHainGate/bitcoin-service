@@ -2,7 +2,6 @@ package repository
 
 import (
 	"errors"
-
 	"github.com/CHainGate/bitcoin-service/internal/model"
 	"gorm.io/gorm"
 )
@@ -16,6 +15,7 @@ type IAccountRepository interface {
 	FindByAddress(address string) (*model.Account, error)
 	Create(account *model.Account) error
 	Update(account *model.Account) error
+	FindAll() ([]model.Account, error)
 }
 
 func NewAccountRepository(db *gorm.DB) IAccountRepository {
@@ -61,4 +61,17 @@ func (r *accountRepository) Update(account *model.Account) error {
 		return result.Error
 	}
 	return nil
+}
+
+func (r *accountRepository) FindAll() ([]model.Account, error) {
+	var acc []model.Account
+	result := r.DB.
+		Preload("Payments.CurrentPaymentState").
+		Preload("Payments.PaymentStates").
+		Find(&acc)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return acc, nil
 }
