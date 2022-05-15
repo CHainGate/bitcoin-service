@@ -35,6 +35,7 @@ func DbTestSetup(pool *dockertest.Pool) (*dockertest.Resource, repository.IAccou
 	utils.Opts.DbPassword = "secret"
 	utils.Opts.DbName = "testdb"
 	utils.Opts.DbPort = ressource.GetPort("5432/tcp")
+	utils.Opts.WalletPassphrase = "secret"
 
 	if err != nil {
 		return nil, nil, nil, err
@@ -141,7 +142,7 @@ func BitcoinNodeTestSetup(pool *dockertest.Pool) (*BitcoinNodeTestSetupResult, e
 		log.Fatalf("generatetoaddress: %s", err)
 	}
 
-	_, err = chaingateClient.CreateWallet("chaingate-wallet")
+	_, err = chaingateClient.CreateWallet("chaingate-wallet", rpcclient.WithCreateWalletPassphrase("secret"))
 	if err != nil {
 		log.Fatalf("chaingate createwallet: %s", err)
 	}

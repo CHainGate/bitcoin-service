@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/CHainGate/bitcoin-service/internal/utils"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"log"
 	"math/big"
@@ -195,7 +196,16 @@ func (s *bitcoinService) sendToAddress(address string, amount *big.Int, mode enu
 
 	var comment []byte
 	var commentTo []byte
+
+	err = client.WalletPassphrase(utils.Opts.WalletPassphrase, 60)
+	if err != nil {
+		return "", err
+	}
 	result, err := client.RawRequest("sendtoaddress", []json.RawMessage{addressAsJson, amountAsJson, comment, commentTo, subtractFeeFromAmount})
+	if err != nil {
+		return "", err
+	}
+	err = client.WalletLock()
 	if err != nil {
 		return "", err
 	}
