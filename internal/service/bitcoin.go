@@ -62,7 +62,10 @@ func (s *bitcoinService) CreateNewPayment(paymentRequest openApi.PaymentRequestD
 		return nil, err
 	}
 
-	payAmountInSatoshi := convertBtcToSatoshi(payAmountInBtc)
+	payAmountInSatoshi, err := convertBtcToSatoshi(payAmountInBtc)
+	if err != nil {
+		return nil, err
+	}
 
 	account, err := s.getFreeAccount(mode)
 	if err != nil {
@@ -456,7 +459,7 @@ func (s *bitcoinService) getUnspentByAddress(address string, minConf int, mode e
 		amount = amount + unspent.Amount
 	}
 
-	return convertBtcToSatoshi(amount), nil
+	return convertBtcToSatoshi(amount)
 }
 
 func (s *bitcoinService) getFreeAccount(mode enum.Mode) (*model.Account, error) {

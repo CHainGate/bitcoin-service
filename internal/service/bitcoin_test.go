@@ -30,6 +30,8 @@ var (
 
 const factor = 100000000
 const payAmount = 0.003403
+
+//const payAmount = 0.000141
 const chaingateProfit = payAmount * 0.01
 
 var testPaymentState = model.PaymentState{

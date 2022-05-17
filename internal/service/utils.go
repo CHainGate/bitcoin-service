@@ -9,7 +9,9 @@ import (
 	"github.com/CHainGate/bitcoin-service/proxyClientApi"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/rpcclient"
+	"github.com/btcsuite/btcutil"
 	"math/big"
+	"strings"
 )
 
 func getPayAmount(priceAmount float64, priceCurrency enum.FiatCurrency) (float64, error) {
@@ -47,15 +49,21 @@ func getNetParams(client *rpcclient.Client) (*chaincfg.Params, error) {
 	}
 }
 
-func convertBtcToSatoshi(val float64) *big.Int {
-	bigVal := new(big.Float)
-	bigVal.SetFloat64(val)
-	balance := big.NewFloat(0).Mul(bigVal, big.NewFloat(100000000))
-	final, accur := balance.Int(nil)
-	if accur == big.Below {
-		final.Add(final, big.NewInt(1))
+func convertBtcToSatoshi(val float64) (*big.Int, error) {
+	amount, err := btcutil.NewAmount(val)
+	if err != nil {
+		return nil, err
 	}
-	return final
+
+	satoshiString := amount.Format(btcutil.AmountSatoshi)
+	//satoshiString -> 1000 Satoshis -> split by space
+	satoshi := strings.Split(satoshiString, " ")
+	result := new(big.Int)
+	result, ok := result.SetString(satoshi[0], 10)
+	if !ok {
+		return nil, err
+	}
+	return result, nil
 }
 
 func CreateBitcoinTestClient() (*rpcclient.Client, error) {
