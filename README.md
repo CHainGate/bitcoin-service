@@ -7,6 +7,7 @@ openapi gen:
  ```
 docker run --rm -v ${PWD}:/local openapitools/openapi-generator-cli generate -i /local/swaggerui/openapi.yaml -g go-server -o /local/ --additional-properties=sourceFolder=openApi,packageName=openApi
 docker run --rm -v ${PWD}:/local openapitools/openapi-generator-cli generate -i https://raw.githubusercontent.com/CHainGate/proxy-service/main/swaggerui/openapi.yaml -g go -o /local/proxyClientApi --ignore-file-override=/local/.openapi-generator-ignore --additional-properties=sourceFolder=proxyClientApi,packageName=proxyClientApi
+docker run --rm -v ${PWD}:/local openapitools/openapi-generator-cli generate -i https://raw.githubusercontent.com/CHainGate/backend/main/swaggerui/internal/openapi.yaml -g go -o /local/backendClientApi --ignore-file-override=/local/.openapi-generator-ignore --additional-properties=sourceFolder=backendClientApi,packageName=backendClientApi
 goimports -w .
  ```
 
@@ -57,10 +58,24 @@ Send btc
 
 
 ```
-.\bitcoind.exe -regtest -fallbackfee='0.001' -datadir=D:\bitcoin\regtest\network
-.\bitcoind.exe -regtest -fallbackfee='0.001' -datadir=D:\bitcoin\regtest\merchant
-.\bitcoind.exe -regtest -fallbackfee='0.001' -datadir=D:\bitcoin\regtest\chaingate
-.\bitcoind.exe -regtest -fallbackfee='0.001' -datadir=D:\bitcoin\regtest\buyer
+.\bitcoind.exe -regtest -fallbackfee='0.000086' -datadir=D:\bitcoin\regtest\network
+.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\network createwallet "network-wallet"
+.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\network getnewaddress
+.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\network generatetoaddress 101 ""
+.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\network sendtoaddress "" 10
+
+
+.\bitcoind.exe -regtest -fallbackfee='0.000086' -datadir=D:\bitcoin\regtest\merchant
+.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\merchant createwallet "merchant-wallet"
+.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\merchant getnewaddress
+
+.\bitcoind.exe -regtest -fallbackfee='0.000086' -datadir=D:\bitcoin\regtest\chaingate
+.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\chaingate createwallet "chaingate-wallet" false false "secret"
+
+.\bitcoind.exe -regtest -fallbackfee='0.000086' -datadir=D:\bitcoin\regtest\buyer
+.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\buyer createwallet "buyer-wallet"
+.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\buyer getnewaddress
+.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\buyer sendtoaddress "" 
 
 .\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\buyer sendtoaddress "bcrt1qud0lp7q3gg2d96uhxj7aa9ee928x8t2zkqnt2s" 0.1
 ```

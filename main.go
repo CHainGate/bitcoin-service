@@ -20,7 +20,6 @@ func main() {
 		fmt.Println(err)
 	}
 
-	//TODO: initial reconciliation with blockchain data, maybe we missed some transactions
 	/*mainClient, err := service.CreateBitcoinMainClient()
 	if err != nil {
 		log.Fatal(err)
@@ -43,5 +42,6 @@ func main() {
 	sh := http.StripPrefix("/api/swaggerui/", http.FileServer(http.Dir("./swaggerui/")))
 	router.PathPrefix("/api/swaggerui/").Handler(sh)
 
+	log.Println("Starting bitcoin-service on port " + strconv.Itoa(utils.Opts.ServerPort))
 	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(utils.Opts.ServerPort), router))
 }

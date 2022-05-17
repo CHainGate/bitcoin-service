@@ -1,8 +1,10 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"github.com/CHainGate/bitcoin-service/backendClientApi"
 	"github.com/CHainGate/bitcoin-service/internal/utils"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"log"
@@ -120,7 +122,7 @@ func (s *bitcoinService) HandleWalletNotify(txId string, mode enum.Mode) {
 		return
 	}
 
-	if currentPayment.Confirmations >= 0 {
+	if currentPayment.Confirmations >= 0 && currentPayment.CurrentPaymentState.StateName == enum.Paid {
 		log.Println("payment already handled")
 		return
 	}
@@ -154,13 +156,33 @@ func (s *bitcoinService) HandleWalletNotify(txId string, mode enum.Mode) {
 	currentPayment.CurrentPaymentState = newState
 	currentPayment.CurrentPaymentStateId = &newState.ID
 
-	//TODO: send notification to backend
+	err = sendNotificationToBackend(currentPayment.ID.String(),
+		currentPayment.CurrentPaymentState.PayAmount.String(),
+		currentPayment.CurrentPaymentState.AmountReceived.String(),
+		currentPayment.CurrentPaymentState.StateName.String())
+
+	if err != nil {
+		log.Println(err)
+		return
+	}
 
 	err = s.paymentRepository.Update(currentPayment)
 	if err != nil {
 		log.Println(err)
 		return
 	}
+}
+
+func sendNotificationToBackend(paymentId string, payAmount string, actuallyPaid string, paymentState string) error {
+	paymentUpdateDto := *backendClientApi.NewPaymentUpdateDto(paymentId, payAmount, enum.BTC.String(), actuallyPaid, paymentState)
+	configuration := backendClientApi.NewConfiguration()
+	configuration.Servers[0].URL = utils.Opts.BackendBaseUrl
+	apiClient := backendClientApi.NewAPIClient(configuration)
+	_, err := apiClient.PaymentUpdateApi.UpdatePayment(context.Background()).PaymentUpdateDto(paymentUpdateDto).Execute()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *bitcoinService) HandleBlockNotify(blockHash string, mode enum.Mode) {
@@ -191,7 +213,6 @@ func (s *bitcoinService) handlePaidPayments(mode enum.Mode) {
 		var diff = payment.CurrentPaymentState.PayAmount.Cmp(amountReceived)
 
 		if diff > 0 {
-			log.Println("not enough paid")
 			return // not enough
 		}
 
@@ -208,11 +229,20 @@ func (s *bitcoinService) handlePaidPayments(mode enum.Mode) {
 		payment.CurrentPaymentState = confirmedState
 		payment.PaymentStates = append(payment.PaymentStates, confirmedState)
 
-		//TODO: update backend (confirmed)
+		err = sendNotificationToBackend(payment.ID.String(),
+			payment.CurrentPaymentState.PayAmount.String(),
+			payment.CurrentPaymentState.AmountReceived.String(),
+			payment.CurrentPaymentState.StateName.String())
+
+		if err != nil {
+			log.Println(err)
+			return
+		}
 
 		err = s.paymentRepository.Update(&payment)
 		if err != nil {
 			log.Println(err)
+			return
 		}
 	}
 }
@@ -277,11 +307,20 @@ func (s *bitcoinService) handleConfirmedPayments(mode enum.Mode) {
 		payment.CurrentPaymentState = sentState
 		payment.PaymentStates = append(payment.PaymentStates, sentState)
 
-		//TODO: update backend (sent)
+		err = sendNotificationToBackend(payment.ID.String(),
+			payment.CurrentPaymentState.PayAmount.String(),
+			payment.CurrentPaymentState.AmountReceived.String(),
+			payment.CurrentPaymentState.StateName.String())
+
+		if err != nil {
+			log.Println(err)
+			return
+		}
 
 		err = s.paymentRepository.Update(&payment)
 		if err != nil {
 			log.Println(err)
+			return
 		}
 	}
 }
@@ -314,10 +353,24 @@ func (s *bitcoinService) handleForwardedTransactions(mode enum.Mode) {
 			payment.PaymentStates = append(payment.PaymentStates, finishState)
 			payment.Account.Used = false
 
-			//TODO: update backend (finished)
+			err = sendNotificationToBackend(payment.ID.String(),
+				payment.CurrentPaymentState.PayAmount.String(),
+				payment.CurrentPaymentState.AmountReceived.String(),
+				payment.CurrentPaymentState.StateName.String())
 
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			err = s.paymentRepository.Update(&payment)
+			if err != nil {
+				log.Println(err)
+				return
+			}
 			err = s.accountRepository.Update(payment.Account)
 			if err != nil {
+				log.Println(err)
 				return
 			}
 		}
@@ -327,12 +380,14 @@ func (s *bitcoinService) handleForwardedTransactions(mode enum.Mode) {
 func (s *bitcoinService) handleExpiredTransactions(mode enum.Mode) {
 	payments, err := s.paymentRepository.FindExpiredPayments()
 	if err != nil {
+		log.Println(err)
 		return
 	}
 
 	for _, payment := range payments {
 		amount, err := s.getUnspentByAddress(payment.Account.Address, 0, mode)
 		if err != nil {
+			log.Println(err)
 			return
 		}
 
@@ -360,11 +415,27 @@ func (s *bitcoinService) handleExpiredTransactions(mode enum.Mode) {
 		payment.CurrentPaymentStateId = &newState.ID
 		payment.CurrentPaymentState = newState
 		payment.PaymentStates = append(payment.PaymentStates, newState)
+		payment.Account.Used = false
 
-		// todo: update backend
+		err = sendNotificationToBackend(payment.ID.String(),
+			payment.CurrentPaymentState.PayAmount.String(),
+			payment.CurrentPaymentState.AmountReceived.String(),
+			payment.CurrentPaymentState.StateName.String())
+
+		if err != nil {
+			log.Println(err)
+			return
+		}
 
 		err = s.paymentRepository.Update(&payment)
 		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		err = s.accountRepository.Update(payment.Account)
+		if err != nil {
+			log.Println(err)
 			return
 		}
 	}
