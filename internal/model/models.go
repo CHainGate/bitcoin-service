@@ -42,7 +42,6 @@ type Payment struct {
 
 type PaymentState struct {
 	Base
-	/*	AccountID      uuid.UUID `gorm:"type:uuid;"`*/
 	PayAmount                *BigInt `gorm:"type:numeric(30);default:0"`
 	AmountReceived           *BigInt `gorm:"type:numeric(30);default:0"`
 	StateName                enum.State
@@ -51,6 +50,7 @@ type PaymentState struct {
 	TransactionConfirmations int64
 }
 
+// TODO: could be outsourced to backend public library. ETH and BTC service use it.
 type BigInt struct {
 	big.Int
 }
