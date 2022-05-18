@@ -127,14 +127,13 @@ func (s *bitcoinService) HandleWalletNotify(txId string, mode enum.Mode) {
 		return
 	}
 
-	amount, err := s.getUnspentByAddress(address, 0, mode)
+	amountReceived, err := s.getUnspentByAddress(address, 0, mode)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
 	currentPayment.Confirmations = 0
-	amountReceived := amount.Sub(amount, &currentPayment.Account.Remainder.Int)
 	var diff = currentPayment.CurrentPaymentState.PayAmount.Cmp(amountReceived)
 
 	newState := model.PaymentState{
@@ -203,13 +202,12 @@ func (s *bitcoinService) handlePaidPayments(mode enum.Mode) {
 	}
 
 	for _, payment := range payments {
-		amount, err := s.getUnspentByAddress(payment.Account.Address, 6, mode)
+		amountReceived, err := s.getUnspentByAddress(payment.Account.Address, 6, mode)
 		if err != nil {
 			log.Println(err)
 			return
 		}
 
-		amountReceived := amount.Sub(amount, &payment.Account.Remainder.Int)
 		var diff = payment.CurrentPaymentState.PayAmount.Cmp(amountReceived)
 
 		if diff > 0 {
@@ -550,9 +548,8 @@ func (s *bitcoinService) getFreeAccount(mode enum.Mode) (*model.Account, error) 
 			return nil, err
 		}
 		newAccount := &model.Account{
-			Address:   newAddress.String(),
-			Used:      true,
-			Remainder: model.NewBigInt(big.NewInt(0)),
+			Address: newAddress.String(),
+			Used:    true,
 		}
 		err = s.accountRepository.Create(newAccount)
 		if err != nil {

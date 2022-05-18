@@ -126,7 +126,6 @@ func TestBitcoinService_CreateNewPayment(t *testing.T) {
 
 	// Assert
 	if payment.Account.Address == "" ||
-		payment.Account.Remainder.Int64() != 0 ||
 		payment.UserWallet != testPayment.UserWallet ||
 		payment.Mode != testPayment.Mode ||
 		payment.PriceAmount != testPayment.PriceAmount ||
@@ -134,7 +133,6 @@ func TestBitcoinService_CreateNewPayment(t *testing.T) {
 		payment.CurrentPaymentStateId.String() == "" ||
 		payment.Confirmations != testPayment.Confirmations {
 		t.Errorf("Expected address to not be empty, but got %s", payment.Account.Address)
-		t.Errorf("Expected %d, but got %d", 0, payment.Account.Remainder.Int64())
 		t.Errorf("Expected %s, but got %s", testPayment.UserWallet, payment.UserWallet)
 		t.Errorf("Expected %d, but got %d", testPayment.Mode, payment.Mode)
 		t.Errorf("Expected %f, but got %f", testPayment.PriceAmount, payment.PriceAmount)

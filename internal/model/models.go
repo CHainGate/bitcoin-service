@@ -21,10 +21,9 @@ type Base struct {
 
 type Account struct {
 	Base
-	Address   string `gorm:"type:varchar"`
-	Used      bool
-	Payments  []Payment
-	Remainder *BigInt `gorm:"type:numeric(30);default:0"`
+	Address  string `gorm:"type:varchar"`
+	Used     bool
+	Payments []Payment
 }
 
 type Payment struct {
