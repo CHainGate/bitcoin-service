@@ -32,18 +32,23 @@ func NewNotificationApiService(bitcoinService IBitcoinService) openApi.Notificat
 }
 
 // BlockNotify - New block notification from bitcoin node
-func (s *NotificationApiService) BlockNotify(ctx context.Context, blockHash string) (openApi.ImplResponse, error) {
-	//TODO: free used accounts if no payment received after maybe 1h??
-	//TODO: add mode to openapi query
-	s.bitcoinService.HandleBlockNotify(blockHash, enum.Test)
-	fmt.Println(blockHash)
-	return openApi.Response(http.StatusNotImplemented, nil), errors.New("BlockNotify method not implemented")
+func (s *NotificationApiService) BlockNotify(ctx context.Context, blockHash string, mode string) (openApi.ImplResponse, error) {
+	m, ok := enum.ParseStringToModeEnum(mode)
+	if !ok {
+		return openApi.Response(http.StatusBadRequest, nil), errors.New(fmt.Sprintf("Wrong mode: %s", mode))
+	}
+	s.bitcoinService.HandleBlockNotify(blockHash, m)
+
+	return openApi.Response(http.StatusOK, nil), nil
 }
 
 // WalletNotify - New wallet notification from Bitcoin Node
-func (s *NotificationApiService) WalletNotify(ctx context.Context, txId string) (openApi.ImplResponse, error) {
-	//TODO: add mode to openapi query
-	s.bitcoinService.HandleWalletNotify(txId, enum.Test)
+func (s *NotificationApiService) WalletNotify(ctx context.Context, txId string, mode string) (openApi.ImplResponse, error) {
+	m, ok := enum.ParseStringToModeEnum(mode)
+	if !ok {
+		return openApi.Response(http.StatusBadRequest, nil), errors.New(fmt.Sprintf("Wrong mode: %s", mode))
+	}
+	s.bitcoinService.HandleWalletNotify(txId, m)
 
 	return openApi.Response(http.StatusOK, nil), nil
 }
