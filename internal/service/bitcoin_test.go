@@ -156,6 +156,13 @@ func TestBitcoinService_CreateNewPayment(t *testing.T) {
 
 func TestBitcoinService_HandleWalletNotify(t *testing.T) {
 	// Arrange
+	defer gock.Off()
+
+	gock.New("http://localhost:8000").
+		Put("/api/internal/payment/webhook").
+		MatchType("json").
+		Reply(200)
+
 	decodedAddress, err := btcutil.DecodeAddress(payAddress, &chaincfg.RegressionNetParams)
 	amount, err := btcutil.NewAmount(payAmount)
 	if err != nil {
@@ -203,6 +210,16 @@ func TestBitcoinService_HandleWalletNotify(t *testing.T) {
 
 func TestBitcoinService_HandleBlockNotify(t *testing.T) {
 	// Arrange
+	defer gock.Off()
+	gock.New("http://localhost:8000").
+		Put("/api/internal/payment/webhook").
+		MatchType("json").
+		Reply(200)
+	gock.New("http://localhost:8000").
+		Put("/api/internal/payment/webhook").
+		MatchType("json").
+		Reply(200)
+
 	address, err := buyerClient.GetNewAddress("")
 	if err != nil {
 		return
@@ -311,6 +328,13 @@ func TestBitcoinService_HandleBlockNotify(t *testing.T) {
 
 func TestBitcoinService_HandleBlockNotify2(t *testing.T) {
 	// Arrange
+	defer gock.Off()
+
+	gock.New("http://localhost:8000").
+		Put("/api/internal/payment/webhook").
+		MatchType("json").
+		Reply(200)
+
 	address, err := buyerClient.GetNewAddress("")
 	if err != nil {
 		return
