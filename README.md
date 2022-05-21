@@ -79,3 +79,10 @@ Send btc
 
 .\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\buyer sendtoaddress "bcrt1qud0lp7q3gg2d96uhxj7aa9ee928x8t2zkqnt2s" 0.1
 ```
+
+Bitcoin Regtest via Docker starten
+
+```
+docker exec -it docker_chaingate_1 /bin/bash
+/bitcoin-cli -regtest generatetoaddress 1 bcrt1qgclvhaa2lgedrze402qzhpxrkj4sxrlszawn3n
+```
