@@ -22,8 +22,6 @@ func SetupDatabase() (IAccountRepository, IPaymentRepository, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	sqlDB, err := db.DB()
-	sqlDB.SetMaxIdleConns(0)
 	db.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
 	err = autoMigrateDB(db)
 	if err != nil {
