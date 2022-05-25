@@ -68,13 +68,13 @@ type BitcoinNodeTestSetupResult struct {
 
 func BitcoinNodeTestSetup(pool *dockertest.Pool) (*BitcoinNodeTestSetupResult, error) {
 	// pulls an image, creates a container based on it and runs it
-	chaingate, err := pool.BuildAndRun("chaingate-image", "..\\..\\test_utils\\docker\\Dockerfile", []string{})
+	chaingate, err := pool.BuildAndRun("chaingate-image", "../../test_utils/docker/Dockerfile", []string{})
 	if err != nil {
 		log.Fatalf("Could not start resource: %s", err)
 		return nil, err
 	}
 
-	buyer, err := pool.BuildAndRun("buyer-image", "..\\..\\test_utils\\docker\\Dockerfile", []string{})
+	buyer, err := pool.BuildAndRun("buyer-image", "../../test_utils/docker/Dockerfile", []string{})
 	if err != nil {
 		log.Fatalf("Could not start resource: %s", err)
 		return nil, err
