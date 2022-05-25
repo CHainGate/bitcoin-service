@@ -1,6 +1,6 @@
 module github.com/CHainGate/bitcoin-service
 
-go 1.17
+go 1.18
 
 require (
 	github.com/CHainGate/backend v0.2.1
@@ -10,7 +10,9 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/joho/godotenv v1.4.0
+	github.com/ory/dockertest/v3 v3.9.0
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5
+	gopkg.in/h2non/gock.v1 v1.1.2
 	gorm.io/driver/postgres v1.3.5
 	gorm.io/gorm v1.23.5
 )
@@ -48,7 +50,6 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/opencontainers/runc v1.1.2 // indirect
-	github.com/ory/dockertest/v3 v3.8.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
@@ -60,6 +61,5 @@ require (
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/appengine v1.6.6 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
-	gopkg.in/h2non/gock.v1 v1.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
