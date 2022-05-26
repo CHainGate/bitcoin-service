@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/CHainGate/bitcoin-service/internal/model"
 	"gorm.io/gorm"
 )
@@ -11,7 +12,7 @@ type accountRepository struct {
 }
 
 type IAccountRepository interface {
-	FindUnused() (*model.Account, error)
+	FindUnusedByMode(mode enum.Mode) (*model.Account, error)
 	FindByAddress(address string) (*model.Account, error)
 	Create(account *model.Account) error
 	Update(account *model.Account) error
@@ -22,9 +23,9 @@ func NewAccountRepository(db *gorm.DB) IAccountRepository {
 	return &accountRepository{db}
 }
 
-func (r *accountRepository) FindUnused() (*model.Account, error) {
+func (r *accountRepository) FindUnusedByMode(mode enum.Mode) (*model.Account, error) {
 	var unusedAccount model.Account
-	result := r.DB.Where("used = false").First(&unusedAccount)
+	result := r.DB.Where("used = false AND mode = ?", mode).First(&unusedAccount)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil

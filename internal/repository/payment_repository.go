@@ -15,11 +15,11 @@ type IPaymentRepository interface {
 	Create(account *model.Payment) error
 	FindCurrentPaymentByAddress(address string) (*model.Payment, error)
 	Update(payment *model.Payment) error
-	FindPaidPayments() ([]model.Payment, error)
-	FindConfirmedPayments() ([]model.Payment, error)
-	FindForwardedPayments() ([]model.Payment, error)
-	FindExpiredPayments() ([]model.Payment, error)
-	FindAllOutgoingTransactionIdsByUserWallet(userWallet string) ([]string, error)
+	FindPaidPaymentsByMode(mode enum.Mode) ([]model.Payment, error)
+	FindConfirmedPaymentsByMode(mode enum.Mode) ([]model.Payment, error)
+	FindForwardedPaymentsByMode(mode enum.Mode) ([]model.Payment, error)
+	FindExpiredPaymentsByMode(mode enum.Mode) ([]model.Payment, error)
+	FindAllOutgoingTransactionIdsByUserWalletAndMode(userWallet string, mode enum.Mode) ([]string, error)
 }
 
 func NewPaymentRepository(db *gorm.DB) IPaymentRepository {
@@ -56,12 +56,12 @@ func (r *paymentRepository) FindCurrentPaymentByAddress(address string) (*model.
 	return &payment, nil
 }
 
-func (r *paymentRepository) FindPaidPayments() ([]model.Payment, error) {
+func (r *paymentRepository) FindPaidPaymentsByMode(mode enum.Mode) ([]model.Payment, error) {
 	var payments []model.Payment
 	result := r.DB.
 		Preload("Account").
 		Joins("CurrentPaymentState").
-		Where("confirmations = 0 AND  \"CurrentPaymentState\".\"state_name\" = ?", enum.Paid).
+		Where("confirmations = 0 AND  \"CurrentPaymentState\".\"state_name\" = ? AND mode = ?", enum.Paid, mode).
 		Find(&payments)
 
 	if result.Error != nil {
@@ -70,12 +70,12 @@ func (r *paymentRepository) FindPaidPayments() ([]model.Payment, error) {
 	return payments, nil
 }
 
-func (r *paymentRepository) FindConfirmedPayments() ([]model.Payment, error) {
+func (r *paymentRepository) FindConfirmedPaymentsByMode(mode enum.Mode) ([]model.Payment, error) {
 	var payments []model.Payment
 	result := r.DB.
 		Preload("Account").
 		Joins("CurrentPaymentState").
-		Where("\"CurrentPaymentState\".\"state_name\" = ?", enum.Confirmed).
+		Where("\"CurrentPaymentState\".\"state_name\" = ? AND mode = ?", enum.Confirmed, mode).
 		Find(&payments)
 
 	if result.Error != nil {
@@ -84,12 +84,12 @@ func (r *paymentRepository) FindConfirmedPayments() ([]model.Payment, error) {
 	return payments, nil
 }
 
-func (r *paymentRepository) FindForwardedPayments() ([]model.Payment, error) {
+func (r *paymentRepository) FindForwardedPaymentsByMode(mode enum.Mode) ([]model.Payment, error) {
 	var payments []model.Payment
 	result := r.DB.
 		Preload("Account").
 		Joins("CurrentPaymentState").
-		Where("\"CurrentPaymentState\".\"state_name\" = ?", enum.Forwarded).
+		Where("\"CurrentPaymentState\".\"state_name\" = ? AND mode = ?", enum.Forwarded, mode).
 		Find(&payments)
 
 	if result.Error != nil {
@@ -98,13 +98,13 @@ func (r *paymentRepository) FindForwardedPayments() ([]model.Payment, error) {
 	return payments, nil
 }
 
-func (r *paymentRepository) FindExpiredPayments() ([]model.Payment, error) {
+func (r *paymentRepository) FindExpiredPaymentsByMode(mode enum.Mode) ([]model.Payment, error) {
 	t := time.Now().Add(time.Minute * -15)
 	var payments []model.Payment
 	result := r.DB.
 		Preload("Account").
 		Joins("CurrentPaymentState").
-		Where("payments.created_at < ? AND \"CurrentPaymentState\".\"state_name\" IN ?", t, []enum.State{enum.CurrencySelection, enum.Waiting, enum.PartiallyPaid}).
+		Where("payments.created_at < ? AND \"CurrentPaymentState\".\"state_name\" IN ? AND mode = ?", t, []enum.State{enum.CurrencySelection, enum.Waiting, enum.PartiallyPaid}, mode).
 		Find(&payments)
 
 	if result.Error != nil {
@@ -113,13 +113,13 @@ func (r *paymentRepository) FindExpiredPayments() ([]model.Payment, error) {
 	return payments, nil
 }
 
-func (r *paymentRepository) FindAllOutgoingTransactionIdsByUserWallet(userWallet string) ([]string, error) {
+func (r *paymentRepository) FindAllOutgoingTransactionIdsByUserWalletAndMode(userWallet string, mode enum.Mode) ([]string, error) {
 	var txIds []string
 	result := r.DB.
 		Table("payments").
 		Select("payment_states.transaction_id").
 		Joins("join payment_states on payment_states.payment_id = payments.id").
-		Where("payments.user_wallet = ? AND payment_states.transaction_id != ''", userWallet).Scan(&txIds)
+		Where("payments.user_wallet = ? AND payment_states.transaction_id != '' and payments.mode = ?", userWallet, mode).Scan(&txIds)
 
 	if result.Error != nil {
 		return nil, result.Error
