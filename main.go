@@ -20,15 +20,16 @@ func main() {
 		fmt.Println(err)
 	}
 
-	/*mainClient, err := service.CreateBitcoinMainClient()
+	mainClient, err := service.CreateBitcoinMainClient()
 	if err != nil {
 		log.Fatal(err)
-	}*/
+	}
 	testClient, err := service.CreateBitcoinTestClient()
 	if err != nil {
 		return
 	}
-	bitcoinService := service.NewBitcoinService(accountRepo, paymentRepo, testClient, nil)
+
+	bitcoinService := service.NewBitcoinService(accountRepo, paymentRepo, testClient, mainClient)
 
 	NotificationApiService := service.NewNotificationApiService(bitcoinService)
 	NotificationApiController := openApi.NewNotificationApiController(NotificationApiService)

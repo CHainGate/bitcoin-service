@@ -463,7 +463,11 @@ func (s *bitcoinService) sendToAddress(address string, amount *big.Int, mode enu
 	var comment []byte
 	var commentTo []byte
 
-	err = client.WalletPassphrase(utils.Opts.WalletPassphrase, 60)
+	passphrase, err := s.getWalletPassphraseByMode(mode)
+	if err != nil {
+		return "", err
+	}
+	err = client.WalletPassphrase(passphrase, 60)
 	if err != nil {
 		return "", err
 	}
@@ -612,5 +616,16 @@ func (s *bitcoinService) getClientByMode(mode enum.Mode) (*rpcclient.Client, err
 		return s.mainClient, nil
 	default:
 		return nil, errors.New("mode not implemented")
+	}
+}
+
+func (s *bitcoinService) getWalletPassphraseByMode(mode enum.Mode) (string, error) {
+	switch mode {
+	case enum.Test:
+		return utils.Opts.TestWalletPassphrase, nil
+	case enum.Main:
+		return utils.Opts.MainWalletPassphrase, nil
+	default:
+		return "", errors.New("mode not implemented")
 	}
 }

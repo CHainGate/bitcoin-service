@@ -35,13 +35,16 @@ func DbTestSetup(pool *dockertest.Pool) (*dockertest.Resource, repository.IAccou
 	utils.Opts.DbPassword = "secret"
 	utils.Opts.DbName = "testdb"
 	utils.Opts.DbPort = ressource.GetPort("5432/tcp")
-	utils.Opts.WalletPassphrase = "secret"
+	utils.Opts.TestWalletPassphrase = "secret"
 
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	ressource.Expire(120) // Tell docker to hard kill the container in 120 seconds
+	err = ressource.Expire(120) // Tell docker to hard kill the container in 120 seconds
+	if err != nil {
+		return nil, nil, nil, err
+	}
 
 	// exponential backoff-retry, because the application in the container might not be ready to accept connections yet
 	pool.MaxWait = 120 * time.Second
