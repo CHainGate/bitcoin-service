@@ -71,6 +71,7 @@ func (s *bitcoinService) CreateNewPayment(paymentRequest openApi.PaymentRequestD
 
 	account, err := s.getFreeAccount(mode)
 	if err != nil {
+		log.Println(err.Error())
 		return nil, err
 	}
 
