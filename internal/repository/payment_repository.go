@@ -1,10 +1,11 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/CHainGate/bitcoin-service/internal/model"
 	"gorm.io/gorm"
-	"time"
 )
 
 type paymentRepository struct {

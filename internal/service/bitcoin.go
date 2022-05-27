@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/CHainGate/bitcoin-service/backendClientApi"
-	"github.com/CHainGate/bitcoin-service/internal/utils"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"log"
 	"math/big"
 	"strings"
+
+	"github.com/CHainGate/bitcoin-service/backendClientApi"
+	"github.com/CHainGate/bitcoin-service/internal/utils"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
 
 	"github.com/google/uuid"
 

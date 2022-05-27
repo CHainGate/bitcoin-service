@@ -1,13 +1,14 @@
 package testutils
 
 import (
+	"log"
+	"time"
+
 	"github.com/CHainGate/bitcoin-service/internal/repository"
 	"github.com/CHainGate/bitcoin-service/internal/utils"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
-	"log"
-	"time"
 )
 
 func DbTestSetup(pool *dockertest.Pool) (*dockertest.Resource, repository.IAccountRepository, repository.IPaymentRepository, error) {

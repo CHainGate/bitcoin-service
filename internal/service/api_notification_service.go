@@ -13,8 +13,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/CHainGate/backend/pkg/enum"
 	"net/http"
+
+	"github.com/CHainGate/backend/pkg/enum"
 
 	"github.com/CHainGate/bitcoin-service/openApi"
 )

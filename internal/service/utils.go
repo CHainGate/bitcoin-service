@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
+	"strings"
+
 	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/CHainGate/bitcoin-service/internal/utils"
 	"github.com/CHainGate/bitcoin-service/proxyClientApi"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcutil"
-	"math/big"
-	"strings"
 )
 
 func getPayAmount(priceAmount float64, priceCurrency enum.FiatCurrency) (float64, error) {
