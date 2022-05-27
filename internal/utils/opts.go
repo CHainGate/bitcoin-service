@@ -54,7 +54,7 @@ func NewOpts() {
 	flag.StringVar(&o.ProxyBaseUrl, "PROXY_BASE_URL", lookupEnv("PROXY_BASE_URL", "http://localhost:8001/api"), "Proxy base url")
 	flag.StringVar(&o.BackendBaseUrl, "BACKEND_BASE_URL", lookupEnv("BACKEND_BASE_URL", "http://localhost:8000/api/internal"), "Backend base url")
 	flag.StringVar(&o.TestWalletPassphrase, "TEST_WALLET_PASSPHRASE", lookupEnv("TEST_WALLET_PASSPHRASE"), "TEST WALLET PASSPHRASE")
-	flag.StringVar(&o.MainWalletPassphrase, "MAIN_WALLET_PASSPHRASE", lookupEnv("MAIN WALLET PASSPHRASE"), "MAIN WALLET PASSPHRASE")
+	flag.StringVar(&o.MainWalletPassphrase, "MAIN_WALLET_PASSPHRASE", lookupEnv("MAIN_WALLET_PASSPHRASE"), "MAIN WALLET PASSPHRASE")
 
 	Opts = o
 }

@@ -23,6 +23,7 @@ type Account struct {
 	Base
 	Address  string `gorm:"type:varchar"`
 	Used     bool
+	Mode     enum.Mode
 	Payments []Payment
 }
 

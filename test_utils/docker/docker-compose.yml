@@ -14,7 +14,7 @@ services:
       - "18501:18444"
     expose:
       - "18444"
-    command: ["-addnode=network:18444"]
+    command: ["-addnode=network:18443"]
   merchant:
     build: ""
     ports:
@@ -22,7 +22,7 @@ services:
       - "18502:18444"
     expose:
       - "18444"
-    command: ["-addnode=network:18444"]
+    command: ["-addnode=network:18443"]
   chaingate:
     build: ""
     ports:
@@ -30,4 +30,4 @@ services:
       - "18503:18444"
     expose:
       - "18444"
-    command: ["-addnode=network:18444", "-walletnotify=curl 'host.docker.internal:9001/api/notification/walletnotify?tx_id=%s&mode=test'", "-blocknotify=curl 'host.docker.internal:9001/api/notification/blocknotify?block_hash=%s&mode=test'"]
+    command: ["-addnode=network:18443", "-walletnotify=curl 'host.docker.internal:9001/api/notification/walletnotify?tx_id=%s&mode=test'", "-blocknotify=curl 'host.docker.internal:9001/api/notification/blocknotify?block_hash=%s&mode=test'"]

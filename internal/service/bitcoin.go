@@ -195,7 +195,7 @@ func (s *bitcoinService) HandleBlockNotify(blockHash string, mode enum.Mode) {
 }
 
 func (s *bitcoinService) handlePaidPayments(mode enum.Mode) {
-	payments, err := s.paymentRepository.FindPaidPayments()
+	payments, err := s.paymentRepository.FindPaidPaymentsByMode(mode)
 	if err != nil {
 		log.Println(err)
 		return
@@ -246,7 +246,7 @@ func (s *bitcoinService) handlePaidPayments(mode enum.Mode) {
 }
 
 func (s *bitcoinService) handleConfirmedPayments(mode enum.Mode) {
-	payments, err := s.paymentRepository.FindConfirmedPayments()
+	payments, err := s.paymentRepository.FindConfirmedPaymentsByMode(mode)
 	if err != nil {
 		log.Println(err)
 		return
@@ -324,7 +324,7 @@ func (s *bitcoinService) handleConfirmedPayments(mode enum.Mode) {
 }
 
 func (s *bitcoinService) handleForwardedTransactions(mode enum.Mode) {
-	payments, err := s.paymentRepository.FindForwardedPayments()
+	payments, err := s.paymentRepository.FindForwardedPaymentsByMode(mode)
 	if err != nil {
 		log.Println(err)
 		return
@@ -376,7 +376,7 @@ func (s *bitcoinService) handleForwardedTransactions(mode enum.Mode) {
 }
 
 func (s *bitcoinService) handleExpiredTransactions(mode enum.Mode) {
-	payments, err := s.paymentRepository.FindExpiredPayments()
+	payments, err := s.paymentRepository.FindExpiredPaymentsByMode(mode)
 	if err != nil {
 		log.Println(err)
 		return
@@ -536,7 +536,7 @@ func (s *bitcoinService) getUnspentByAddress(address string, minConf int, mode e
 }
 
 func (s *bitcoinService) getFreeAccount(mode enum.Mode) (*model.Account, error) {
-	freeAccount, err := s.accountRepository.FindUnused()
+	freeAccount, err := s.accountRepository.FindUnusedByMode(mode)
 	if err != nil {
 		return nil, err
 	}
@@ -554,6 +554,7 @@ func (s *bitcoinService) getFreeAccount(mode enum.Mode) (*model.Account, error) 
 		newAccount := &model.Account{
 			Address: newAddress.String(),
 			Used:    true,
+			Mode:    mode,
 		}
 		err = s.accountRepository.Create(newAccount)
 		if err != nil {
@@ -587,7 +588,7 @@ func (s *bitcoinService) findMissingTransaction(userWallet string, mode enum.Mod
 		return nil, err
 	}
 
-	txIds, err := s.paymentRepository.FindAllOutgoingTransactionIdsByUserWallet(userWallet)
+	txIds, err := s.paymentRepository.FindAllOutgoingTransactionIdsByUserWalletAndMode(userWallet, mode)
 	if err != nil {
 		return nil, err
 	}
