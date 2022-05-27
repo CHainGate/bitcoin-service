@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/CHainGate/bitcoin-service/internal/model"
 	"github.com/CHainGate/bitcoin-service/internal/utils"
@@ -22,6 +23,10 @@ func SetupDatabase() (IAccountRepository, IPaymentRepository, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	t, err := db.DB()
+	t.SetConnMaxLifetime(time.Hour * 1)
+	t.SetConnMaxIdleTime(time.Hour * 1)
+	//t.SetMaxIdleConns(0)
 	db.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
 	err = autoMigrateDB(db)
 	if err != nil {

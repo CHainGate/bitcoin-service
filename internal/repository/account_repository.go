@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+
 	"github.com/CHainGate/bitcoin-service/internal/model"
 	"gorm.io/gorm"
 )

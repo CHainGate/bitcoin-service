@@ -1,13 +1,14 @@
 package testutils
 
 import (
+	"log"
+	"time"
+
 	"github.com/CHainGate/bitcoin-service/internal/repository"
 	"github.com/CHainGate/bitcoin-service/internal/utils"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
-	"log"
-	"time"
 )
 
 func DbTestSetup(pool *dockertest.Pool) (*dockertest.Resource, repository.IAccountRepository, repository.IPaymentRepository, error) {
@@ -71,13 +72,13 @@ type BitcoinNodeTestSetupResult struct {
 
 func BitcoinNodeTestSetup(pool *dockertest.Pool) (*BitcoinNodeTestSetupResult, error) {
 	// pulls an image, creates a container based on it and runs it
-	chaingate, err := pool.BuildAndRun("chaingate-image", "..\\..\\test_utils\\docker\\Dockerfile", []string{})
+	chaingate, err := pool.BuildAndRun("chaingate-image", "../../test_utils/docker/Dockerfile", []string{})
 	if err != nil {
 		log.Fatalf("Could not start resource: %s", err)
 		return nil, err
 	}
 
-	buyer, err := pool.BuildAndRun("buyer-image", "..\\..\\test_utils\\docker\\Dockerfile", []string{})
+	buyer, err := pool.BuildAndRun("buyer-image", "../../test_utils/docker/Dockerfile", []string{})
 	if err != nil {
 		log.Fatalf("Could not start resource: %s", err)
 		return nil, err
