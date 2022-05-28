@@ -7,6 +7,7 @@ services:
       - "18500:18444"
     expose:
       - "18444"
+    command: ["-dustrelayfee=0.0"]
   buyer:
     build: ""
     ports:
