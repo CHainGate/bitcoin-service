@@ -66,6 +66,26 @@ func convertBtcToSatoshi(val float64) (*big.Int, error) {
 	return result, nil
 }
 
+func getFee(feeRate *float64, size int64) (*big.Int, error) {
+	feeRateInBTCPerKB, err := btcutil.NewAmount(*feeRate)
+	feeRateInSatoshiPerKBString := feeRateInBTCPerKB.Format(btcutil.AmountSatoshi)
+	satoshi := strings.Split(feeRateInSatoshiPerKBString, " ")
+	feeRateInSatoshiPerKB := new(big.Float)
+	feeRateInSatoshiPerKB, ok := feeRateInSatoshiPerKB.SetString(satoshi[0])
+	if !ok {
+		return nil, err
+	}
+
+	feeRateInSatoshiPerByte := feeRateInSatoshiPerKB.Quo(feeRateInSatoshiPerKB, big.NewFloat(1000))
+	txFee := feeRateInSatoshiPerByte.Mul(feeRateInSatoshiPerByte, big.NewFloat(float64(size)))
+	final, accur := txFee.Int(nil)
+	if accur == big.Below {
+		final.Add(final, big.NewInt(1))
+	}
+
+	return final, nil
+}
+
 func CreateBitcoinTestClient() (*rpcclient.Client, error) {
 	connCfg := &rpcclient.ConnConfig{
 		Host:         utils.Opts.BitcoinTestHost,

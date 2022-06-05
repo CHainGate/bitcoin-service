@@ -69,6 +69,15 @@ func (s *bitcoinService) CreateNewPayment(paymentRequest openApi.PaymentRequestD
 		return nil, err
 	}
 
+	enough, err := s.isPayAmountEnough(mode, payAmountInSatoshi)
+	if err != nil {
+		return nil, err
+	}
+
+	if !enough {
+		return nil, errors.New("Pay amount is to low ")
+	}
+
 	account, err := s.getFreeAccount(mode)
 	if err != nil {
 		return nil, err
@@ -607,6 +616,48 @@ func (s *bitcoinService) findMissingTransaction(userWallet string, mode enum.Mod
 		}
 	}
 	return results, nil
+}
+
+// the pay amount is heigh enough if payAmount > 2 * txFee
+// and changeAmount > changeCost
+func (s *bitcoinService) isPayAmountEnough(mode enum.Mode, payAmount *big.Int) (bool, error) {
+	client, err := s.getClientByMode(mode)
+	if err != nil {
+		return false, err
+	}
+
+	feeRate, err := client.EstimateSmartFee(6, &btcjson.EstimateModeConservative)
+	if err != nil {
+		return false, err
+	}
+
+	// tx size = (input count * 68.5) + (output coin * 31) + 10
+	// tx size = 141
+	const txSize = 141
+	txFee, err := getFee(feeRate.FeeRate, txSize)
+	if err != nil {
+		return false, err
+	}
+
+	// changeFee = feeRate * changeOutputSize / 1000
+	// costOfChange = (discardFee * changeSpendSize / 1000) + changeFee
+	// we set discardFee and dustRelayFee (for dust transactions) to 0
+	// this means our change need only to be higher dan changeFee
+	const changeOutputSize = 32 //change address is 32 byte large. https://en.bitcoin.it/wiki/Bech32
+	changeFee, err := getFee(feeRate.FeeRate, changeOutputSize)
+	if err != nil {
+		return false, err
+	}
+
+	minPayAmount := txFee.Mul(txFee, big.NewInt(2))
+	forwardAmount := calculateForwardAmount(payAmount)
+	changeAmount := big.NewInt(0).Sub(payAmount, forwardAmount)
+
+	if payAmount.Cmp(minPayAmount) > 0 && changeAmount.Cmp(changeFee) > 0 {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func (s *bitcoinService) getClientByMode(mode enum.Mode) (*rpcclient.Client, error) {
