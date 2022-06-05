@@ -61,7 +61,7 @@ func (r *paymentRepository) FindPaidPaymentsByMode(mode enum.Mode) ([]model.Paym
 	result := r.DB.
 		Preload("Account").
 		Joins("CurrentPaymentState").
-		Where("confirmations = 0 AND  \"CurrentPaymentState\".\"state_name\" = ? AND mode = ?", enum.Paid, mode).
+		Where("\"CurrentPaymentState\".\"state_name\" = ? AND mode = ?", enum.Paid, mode).
 		Find(&payments)
 
 	if result.Error != nil {
