@@ -26,6 +26,8 @@ type OptsType struct {
 	BackendBaseUrl       string
 	TestWalletPassphrase string
 	MainWalletPassphrase string
+	TestChangeAddress    string
+	MainChangeAddress    string
 }
 
 var (
@@ -55,6 +57,8 @@ func NewOpts() {
 	flag.StringVar(&o.BackendBaseUrl, "BACKEND_BASE_URL", lookupEnv("BACKEND_BASE_URL", "http://localhost:8000/api/internal"), "Backend base url")
 	flag.StringVar(&o.TestWalletPassphrase, "TEST_WALLET_PASSPHRASE", lookupEnv("TEST_WALLET_PASSPHRASE"), "TEST WALLET PASSPHRASE")
 	flag.StringVar(&o.MainWalletPassphrase, "MAIN_WALLET_PASSPHRASE", lookupEnv("MAIN_WALLET_PASSPHRASE"), "MAIN WALLET PASSPHRASE")
+	flag.StringVar(&o.TestChangeAddress, "TEST_CHANGE_ADDRESS", lookupEnv("TEST_CHANGE_ADDRESS"), "TEST_CHANGE_ADDRESS")
+	flag.StringVar(&o.MainChangeAddress, "MAIN_CHANGE_ADDRESS", lookupEnv("MAIN_CHANGE_ADDRESS"), "MAIN_CHANGE_ADDRESS")
 
 	Opts = o
 }

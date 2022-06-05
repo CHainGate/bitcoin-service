@@ -1,23 +1,15 @@
 package service
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
-	"github.com/CHainGate/bitcoin-service/backendClientApi"
-	"github.com/CHainGate/bitcoin-service/internal/utils"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/google/uuid"
 	"log"
 	"math/big"
-	"strings"
-
-	"github.com/google/uuid"
 
 	"github.com/CHainGate/backend/pkg/enum"
 	"github.com/CHainGate/bitcoin-service/internal/model"
 	"github.com/CHainGate/bitcoin-service/internal/repository"
 	"github.com/CHainGate/bitcoin-service/openApi"
-	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcutil"
 )
@@ -112,7 +104,13 @@ func (s *bitcoinService) CreateNewPayment(paymentRequest openApi.PaymentRequestD
 }
 
 func (s *bitcoinService) HandleWalletNotify(txId string, mode enum.Mode) {
-	transaction, err := s.getTransaction(txId, mode)
+	client, err := s.getClientByMode(mode)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	transaction, err := getTransaction(client, txId)
 	if err != nil {
 		log.Println(err)
 		return
@@ -179,18 +177,6 @@ func (s *bitcoinService) HandleWalletNotify(txId string, mode enum.Mode) {
 		log.Println(err)
 		return
 	}
-}
-
-func sendNotificationToBackend(paymentId string, payAmount string, actuallyPaid string, paymentState string) error {
-	paymentUpdateDto := *backendClientApi.NewPaymentUpdateDto(paymentId, payAmount, enum.BTC.String(), actuallyPaid, paymentState)
-	configuration := backendClientApi.NewConfiguration()
-	configuration.Servers[0].URL = utils.Opts.BackendBaseUrl
-	apiClient := backendClientApi.NewAPIClient(configuration)
-	_, err := apiClient.PaymentUpdateApi.UpdatePayment(context.Background()).PaymentUpdateDto(paymentUpdateDto).Execute()
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (s *bitcoinService) HandleBlockNotify(blockHash string, mode enum.Mode) {
@@ -294,7 +280,7 @@ func (s *bitcoinService) handleConfirmedPayments(mode enum.Mode) {
 		} else {
 			forwardAmount := calculateForwardAmount(&payment.CurrentPaymentState.PayAmount.Int)
 			//TODO: if multiple blocknotify at the same time we send multiple times, but should in reality never happen
-			txId, err = s.sendToAddress(payment.UserWallet, forwardAmount, mode)
+			txId, err = s.createTransaction(payment.Account.Address, payment.UserWallet, forwardAmount, mode)
 			if err != nil {
 				log.Println(err)
 				return
@@ -333,6 +319,12 @@ func (s *bitcoinService) handleConfirmedPayments(mode enum.Mode) {
 }
 
 func (s *bitcoinService) handleForwardedTransactions(mode enum.Mode) {
+	client, err := s.getClientByMode(mode)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
 	payments, err := s.paymentRepository.FindForwardedPaymentsByMode(mode)
 	if err != nil {
 		log.Println(err)
@@ -340,7 +332,7 @@ func (s *bitcoinService) handleForwardedTransactions(mode enum.Mode) {
 	}
 
 	for _, payment := range payments {
-		transaction, err := s.getTransaction(payment.CurrentPaymentState.TransactionID, mode)
+		transaction, err := getTransaction(client, payment.CurrentPaymentState.TransactionID)
 		if err != nil {
 			log.Println(err)
 			return
@@ -448,71 +440,27 @@ func (s *bitcoinService) handleExpiredTransactions(mode enum.Mode) {
 	}
 }
 
-func (s *bitcoinService) sendToAddress(address string, amount *big.Int, mode enum.Mode) (string, error) {
+func (s *bitcoinService) createTransaction(fromAddress string, toAddress string, amount *big.Int, mode enum.Mode) (string, error) {
 	client, err := s.getClientByMode(mode)
 	if err != nil {
 		return "", err
 	}
 
-	addressAsJson, err := json.Marshal(address)
+	rawTransaction, err := createRawTransaction(client, fromAddress, toAddress, amount)
 	if err != nil {
 		return "", err
 	}
 
-	amountAsJson, err := json.Marshal(btcutil.Amount(amount.Int64()).ToBTC())
+	fundedTransaction, err := fundTransaction(client, rawTransaction, mode)
 	if err != nil {
 		return "", err
 	}
 
-	subtractFeeFromAmount, err := json.Marshal(btcjson.Bool(true))
+	txHash, err := signTransaction(client, fundedTransaction, mode)
 	if err != nil {
 		return "", err
 	}
-
-	var comment []byte
-	var commentTo []byte
-
-	passphrase, err := s.getWalletPassphraseByMode(mode)
-	if err != nil {
-		return "", err
-	}
-	err = client.WalletPassphrase(passphrase, 60)
-	if err != nil {
-		return "", err
-	}
-	result, err := client.RawRequest("sendtoaddress", []json.RawMessage{addressAsJson, amountAsJson, comment, commentTo, subtractFeeFromAmount})
-	if err != nil {
-		return "", err
-	}
-	err = client.WalletLock()
-	if err != nil {
-		return "", err
-	}
-
-	txId, err := result.MarshalJSON()
-	if err != nil {
-		return "", err
-	}
-
-	cleanTxId := strings.Trim(string(txId), "\"")
-
-	return cleanTxId, nil
-}
-
-func (s *bitcoinService) getTransaction(txId string, mode enum.Mode) (*btcjson.GetTransactionResult, error) {
-	client, err := s.getClientByMode(mode)
-	if err != nil {
-		return nil, err
-	}
-	hash, err := chainhash.NewHashFromStr(txId)
-	if err != nil {
-		return nil, err
-	}
-	transaction, err := client.GetTransaction(hash)
-	if err != nil {
-		return nil, err
-	}
-	return transaction, nil
+	return txHash.String(), nil
 }
 
 func (s *bitcoinService) getUnspentByAddress(address string, minConf int, mode enum.Mode) (*big.Int, error) {
@@ -626,7 +574,7 @@ func (s *bitcoinService) isPayAmountEnough(mode enum.Mode, payAmount *big.Int) (
 		return false, err
 	}
 
-	feeRate, err := client.EstimateSmartFee(6, &btcjson.EstimateModeConservative)
+	feeRate, err := getFeeRate(client)
 	if err != nil {
 		return false, err
 	}
@@ -634,7 +582,7 @@ func (s *bitcoinService) isPayAmountEnough(mode enum.Mode, payAmount *big.Int) (
 	// tx size = (input count * 68.5) + (output coin * 31) + 10
 	// tx size = 141
 	const txSize = 141
-	txFee, err := getFee(feeRate.FeeRate, txSize)
+	txFee, err := getFee(feeRate, txSize)
 	if err != nil {
 		return false, err
 	}
@@ -644,7 +592,7 @@ func (s *bitcoinService) isPayAmountEnough(mode enum.Mode, payAmount *big.Int) (
 	// we set discardFee and dustRelayFee (for dust transactions) to 0
 	// this means our change need only to be higher dan changeFee
 	const changeOutputSize = 32 //change address is 32 byte large. https://en.bitcoin.it/wiki/Bech32
-	changeFee, err := getFee(feeRate.FeeRate, changeOutputSize)
+	changeFee, err := getFee(feeRate, changeOutputSize)
 	if err != nil {
 		return false, err
 	}
@@ -668,16 +616,5 @@ func (s *bitcoinService) getClientByMode(mode enum.Mode) (*rpcclient.Client, err
 		return s.mainClient, nil
 	default:
 		return nil, errors.New("mode not implemented")
-	}
-}
-
-func (s *bitcoinService) getWalletPassphraseByMode(mode enum.Mode) (string, error) {
-	switch mode {
-	case enum.Test:
-		return utils.Opts.TestWalletPassphrase, nil
-	case enum.Main:
-		return utils.Opts.MainWalletPassphrase, nil
-	default:
-		return "", errors.New("mode not implemented")
 	}
 }
