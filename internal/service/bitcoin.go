@@ -141,6 +141,7 @@ func (s *bitcoinService) HandleWalletNotify(txId string, mode enum.Mode) {
 	}
 
 	currentPayment.Confirmations = 0
+	amountReceived.Sub(amountReceived, &currentPayment.Account.Remainder.Int)
 	var diff = currentPayment.CurrentPaymentState.PayAmount.Cmp(amountReceived)
 
 	newState := model.PaymentState{
@@ -203,6 +204,7 @@ func (s *bitcoinService) handlePaidPayments(mode enum.Mode) {
 			return
 		}
 
+		amountReceived.Sub(amountReceived, &payment.Account.Remainder.Int)
 		var diff = payment.CurrentPaymentState.PayAmount.Cmp(amountReceived)
 
 		if diff > 0 {
@@ -254,6 +256,7 @@ func (s *bitcoinService) handleConfirmedPayments(mode enum.Mode) {
 			return
 		}
 
+		amount.Sub(amount, &payment.Account.Remainder.Int)
 		// should in theorie never happen
 		if payment.CurrentPaymentState.PayAmount.Cmp(amount) > 0 {
 			log.Println(err)
@@ -352,6 +355,15 @@ func (s *bitcoinService) handleForwardedTransactions(mode enum.Mode) {
 			payment.PaymentStates = append(payment.PaymentStates, finishState)
 			payment.Account.Used = false
 
+			if payment.Account.Remainder.Cmp(big.NewInt(0)) > 0 {
+				unspentAmount, err := s.getUnspentByAddress(payment.Account.Address, 0, mode)
+				if err != nil {
+					log.Println(err)
+					return
+				}
+				payment.Account.Remainder = model.NewBigInt(unspentAmount)
+			}
+
 			err = sendNotificationToBackend(payment.ID.String(),
 				payment.CurrentPaymentState.PayAmount.String(),
 				payment.CurrentPaymentState.AmountReceived.String(),
@@ -384,7 +396,7 @@ func (s *bitcoinService) handleExpiredTransactions(mode enum.Mode) {
 	}
 
 	for _, payment := range payments {
-		amount, err := s.getUnspentByAddress(payment.Account.Address, 0, mode)
+		receivedAmount, err := s.getUnspentByAddress(payment.Account.Address, 0, mode)
 		if err != nil {
 			log.Println(err)
 			return
@@ -393,11 +405,11 @@ func (s *bitcoinService) handleExpiredTransactions(mode enum.Mode) {
 		var newState model.PaymentState
 
 		// he has paid but we did not get the notifications
-		if amount.Cmp(&payment.CurrentPaymentState.PayAmount.Int) >= 0 {
+		if receivedAmount.Cmp(&payment.CurrentPaymentState.PayAmount.Int) >= 0 {
 			newState = model.PaymentState{
 				Base:           model.Base{ID: uuid.New()},
 				PayAmount:      payment.CurrentPaymentState.PayAmount,
-				AmountReceived: model.NewBigInt(amount),
+				AmountReceived: model.NewBigInt(receivedAmount),
 				PaymentID:      payment.CurrentPaymentState.PaymentID,
 				StateName:      enum.Paid,
 			}
@@ -409,12 +421,17 @@ func (s *bitcoinService) handleExpiredTransactions(mode enum.Mode) {
 				PaymentID:      payment.CurrentPaymentState.PaymentID,
 				StateName:      enum.Expired,
 			}
+			payment.Account.Used = false
+			// if the buyer has partially_paid but the transaction is expired
+			if receivedAmount.Cmp(big.NewInt(0)) > 0 {
+				newRemainder := payment.Account.Remainder.Add(&payment.Account.Remainder.Int, receivedAmount)
+				payment.Account.Remainder = model.NewBigInt(newRemainder)
+			}
 		}
 
 		payment.CurrentPaymentStateId = &newState.ID
 		payment.CurrentPaymentState = newState
 		payment.PaymentStates = append(payment.PaymentStates, newState)
-		payment.Account.Used = false
 
 		err = sendNotificationToBackend(payment.ID.String(),
 			payment.CurrentPaymentState.PayAmount.String(),

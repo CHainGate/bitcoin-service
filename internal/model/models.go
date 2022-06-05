@@ -21,10 +21,11 @@ type Base struct {
 
 type Account struct {
 	Base
-	Address  string `gorm:"type:varchar"`
-	Used     bool
-	Mode     enum.Mode
-	Payments []Payment
+	Address   string `gorm:"type:varchar"`
+	Used      bool
+	Mode      enum.Mode
+	Remainder *BigInt `gorm:"type:numeric(30);default:0"`
+	Payments  []Payment
 }
 
 type Payment struct {
