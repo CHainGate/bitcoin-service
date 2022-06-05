@@ -117,9 +117,8 @@ func (r *paymentRepository) FindAllOutgoingTransactionIdsByUserWalletAndMode(use
 	var txIds []string
 	result := r.DB.
 		Table("payments").
-		Select("payment_states.transaction_id").
-		Joins("join payment_states on payment_states.payment_id = payments.id").
-		Where("payments.user_wallet = ? AND payment_states.transaction_id != '' and payments.mode = ?", userWallet, mode).Scan(&txIds)
+		Select("forwarding_transaction_id").
+		Where("user_wallet = ? AND mode = ? AND forwarding_transaction_id IS NOT NULL", userWallet, mode).Scan(&txIds)
 
 	if result.Error != nil {
 		return nil, result.Error
