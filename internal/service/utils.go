@@ -86,8 +86,9 @@ func calculateForwardAmount(amount *big.Int) *big.Int {
 	return mul.Div(mul, big.NewInt(100))
 }
 
-func sendNotificationToBackend(paymentId string, payAmount string, actuallyPaid string, paymentState string) error {
+func sendNotificationToBackend(paymentId string, payAmount string, actuallyPaid string, paymentState string, forwardingTxHash *string) error {
 	paymentUpdateDto := *backendClientApi.NewPaymentUpdateDto(paymentId, payAmount, enum.BTC.String(), actuallyPaid, paymentState)
+	paymentUpdateDto.TxHash = forwardingTxHash
 	configuration := backendClientApi.NewConfiguration()
 	configuration.Servers[0].URL = utils.Opts.BackendBaseUrl
 	apiClient := backendClientApi.NewAPIClient(configuration)

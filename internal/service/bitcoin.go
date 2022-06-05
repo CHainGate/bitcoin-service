@@ -163,7 +163,8 @@ func (s *bitcoinService) HandleWalletNotify(txId string, mode enum.Mode) {
 	err = sendNotificationToBackend(currentPayment.ID.String(),
 		currentPayment.CurrentPaymentState.PayAmount.String(),
 		currentPayment.CurrentPaymentState.AmountReceived.String(),
-		currentPayment.CurrentPaymentState.StateName.String())
+		currentPayment.CurrentPaymentState.StateName.String(),
+		currentPayment.ForwardingTransactionID)
 
 	if err != nil {
 		log.Println(err)
@@ -224,7 +225,8 @@ func (s *bitcoinService) handlePaidPayments(mode enum.Mode) {
 		err = sendNotificationToBackend(payment.ID.String(),
 			payment.CurrentPaymentState.PayAmount.String(),
 			payment.CurrentPaymentState.AmountReceived.String(),
-			payment.CurrentPaymentState.StateName.String())
+			payment.CurrentPaymentState.StateName.String(),
+			payment.ForwardingTransactionID)
 
 		if err != nil {
 			log.Println(err)
@@ -340,7 +342,8 @@ func (s *bitcoinService) handleConfirmedPayments(mode enum.Mode) {
 		err = sendNotificationToBackend(payment.ID.String(),
 			payment.CurrentPaymentState.PayAmount.String(),
 			payment.CurrentPaymentState.AmountReceived.String(),
-			payment.CurrentPaymentState.StateName.String())
+			payment.CurrentPaymentState.StateName.String(),
+			payment.ForwardingTransactionID)
 
 		if err != nil {
 			log.Println(err)
@@ -401,7 +404,8 @@ func (s *bitcoinService) handleForwardedTransactions(mode enum.Mode) {
 			err = sendNotificationToBackend(payment.ID.String(),
 				payment.CurrentPaymentState.PayAmount.String(),
 				payment.CurrentPaymentState.AmountReceived.String(),
-				payment.CurrentPaymentState.StateName.String())
+				payment.CurrentPaymentState.StateName.String(),
+				payment.ForwardingTransactionID)
 
 			if err != nil {
 				log.Println(err)
@@ -470,7 +474,8 @@ func (s *bitcoinService) handleExpiredTransactions(mode enum.Mode) {
 		err = sendNotificationToBackend(payment.ID.String(),
 			payment.CurrentPaymentState.PayAmount.String(),
 			payment.CurrentPaymentState.AmountReceived.String(),
-			payment.CurrentPaymentState.StateName.String())
+			payment.CurrentPaymentState.StateName.String(),
+			payment.ForwardingTransactionID)
 
 		if err != nil {
 			log.Println(err)
