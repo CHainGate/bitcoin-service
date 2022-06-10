@@ -44,7 +44,7 @@ func (s *PaymentApiService) CreatePayment(ctx context.Context, paymentRequestDto
 		PayAddress:    payment.Account.Address,
 		PayAmount:     payment.PaymentStates[0].PayAmount.String(),
 		PayCurrency:   enum.BTC.String(),
-		PaymentState:  payment.PaymentStates[0].StateId.String(),
+		PaymentState:  payment.PaymentStates[0].StateID.String(),
 	}
 
 	return openApi.Response(http.StatusCreated, result), nil

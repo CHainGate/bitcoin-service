@@ -48,7 +48,7 @@ type PaymentState struct {
 	Base
 	PayAmount      *BigInt `gorm:"type:numeric(30);default:0"`
 	AmountReceived *BigInt `gorm:"type:numeric(30);default:0"`
-	StateId        enum.State
+	StateID        enum.State
 	PaymentID      uuid.UUID `gorm:"type:uuid"`
 }
 

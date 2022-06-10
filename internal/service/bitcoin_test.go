@@ -35,7 +35,7 @@ const payAmount = 0.003403
 const chaingateProfit = payAmount * 0.01
 
 var testPaymentState = model.PaymentState{
-	StateId:        enum.Waiting,
+	StateID:        enum.Waiting,
 	PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
 	AmountReceived: model.NewBigInt(big.NewInt(0)),
 }
@@ -142,7 +142,7 @@ func TestBitcoinService_CreateNewPayment(t *testing.T) {
 	payAmountCmp := payment.PaymentStates[0].PayAmount.Cmp(&testPaymentState.PayAmount.Int)
 	amountReceivedCmp := payment.PaymentStates[0].AmountReceived.Cmp(&testPaymentState.AmountReceived.Int)
 
-	if payment.PaymentStates[0].StateId != testPaymentState.StateId ||
+	if payment.PaymentStates[0].StateID != testPaymentState.StateID ||
 		payment.ReceivedConfirmations != testPayment.ReceivedConfirmations ||
 		payAmountCmp != 0 ||
 		amountReceivedCmp != 0 {
@@ -186,13 +186,13 @@ func TestBitcoinService_HandleWalletNotify(t *testing.T) {
 	cmpPayAmount := account.Payments[0].CurrentPaymentState.PayAmount.Cmp(&testPaymentState.PayAmount.Int)
 	cmpAmountReceived := account.Payments[0].CurrentPaymentState.AmountReceived.Cmp(&testPaymentState.PayAmount.Int)
 	if len(account.Payments) != 1 ||
-		account.Payments[0].CurrentPaymentState.StateId != enum.Paid ||
+		account.Payments[0].CurrentPaymentState.StateID != enum.Paid ||
 		cmpPayAmount != 0 ||
 		cmpAmountReceived != 0 ||
 		account.Payments[0].ForwardingConfirmations != nil ||
 		*account.Payments[0].ReceivedConfirmations != 0 {
 		t.Errorf("Expected: %d got: %d", 1, len(account.Payments))
-		t.Errorf("Expected: %d got: %d", enum.Paid, account.Payments[0].CurrentPaymentState.StateId)
+		t.Errorf("Expected: %d got: %d", enum.Paid, account.Payments[0].CurrentPaymentState.StateID)
 		t.Errorf("Expected: %d got: %d", 0, cmpPayAmount)
 		t.Errorf("Expected: %d got: %d", 0, cmpAmountReceived)
 		t.Errorf("Expected: %v got: %d", nil, *account.Payments[0].ForwardingConfirmations)
@@ -242,40 +242,40 @@ func TestBitcoinService_HandleBlockNotify(t *testing.T) {
 
 	expectedStates := []model.PaymentState{
 		{
-			StateId:        enum.Waiting,
+			StateID:        enum.Waiting,
 			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
 			AmountReceived: model.NewBigInt(big.NewInt(0)),
 		},
 		{
-			StateId:        enum.Paid,
+			StateID:        enum.Paid,
 			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
 			AmountReceived: model.NewBigInt(big.NewInt(payAmount * factor)),
 		},
 		{
-			StateId:        enum.Confirmed,
+			StateID:        enum.Confirmed,
 			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
 			AmountReceived: model.NewBigInt(big.NewInt(payAmount * factor)),
 		},
 		{
-			StateId:        enum.Forwarded,
+			StateID:        enum.Forwarded,
 			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
 			AmountReceived: model.NewBigInt(big.NewInt(payAmount * factor)),
 		},
 	}
 	for i, paymentState := range account.Payments[0].PaymentStates {
-		if paymentState.StateId != expectedStates[i].StateId ||
+		if paymentState.StateID != expectedStates[i].StateID ||
 			paymentState.PayAmount.Cmp(&expectedStates[i].PayAmount.Int) != 0 ||
 			paymentState.AmountReceived.Cmp(&expectedStates[i].AmountReceived.Int) != 0 {
-			t.Errorf("Expected: %v got %v", expectedStates[i].StateId, paymentState.StateId)
+			t.Errorf("Expected: %v got %v", expectedStates[i].StateID, paymentState.StateID)
 			t.Errorf("Expected: %s got %s", expectedStates[i].PayAmount.String(), paymentState.PayAmount.String())
 			t.Errorf("Expected: %s got %s", expectedStates[i].AmountReceived.String(), paymentState.AmountReceived.String())
 		}
 
-		if paymentState.StateId == enum.Forwarded && account.Payments[0].ForwardingTransactionHash == nil {
+		if paymentState.StateID == enum.Forwarded && account.Payments[0].ForwardingTransactionHash == nil {
 			t.Errorf("Expected ForwardingTransactionHash not to be empty, but got nil")
 		}
 
-		if paymentState.StateId == enum.Forwarded && *account.Payments[0].ForwardingConfirmations != 1 {
+		if paymentState.StateID == enum.Forwarded && *account.Payments[0].ForwardingConfirmations != 1 {
 			t.Errorf("Expected ForwardingConfirmations to be 1, but got %d", *account.Payments[0].ForwardingConfirmations)
 		}
 	}
@@ -359,36 +359,36 @@ func TestBitcoinService_HandleBlockNotify2(t *testing.T) {
 
 	expectedStates := []model.PaymentState{
 		{
-			StateId:        enum.Waiting,
+			StateID:        enum.Waiting,
 			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
 			AmountReceived: model.NewBigInt(big.NewInt(0)),
 		},
 		{
-			StateId:        enum.Paid,
+			StateID:        enum.Paid,
 			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
 			AmountReceived: model.NewBigInt(big.NewInt(payAmount * factor)),
 		},
 		{
-			StateId:        enum.Confirmed,
+			StateID:        enum.Confirmed,
 			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
 			AmountReceived: model.NewBigInt(big.NewInt(payAmount * factor)),
 		},
 		{
-			StateId:        enum.Forwarded,
+			StateID:        enum.Forwarded,
 			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
 			AmountReceived: model.NewBigInt(big.NewInt(payAmount * factor)),
 		},
 		{
-			StateId:        enum.Finished,
+			StateID:        enum.Finished,
 			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
 			AmountReceived: model.NewBigInt(big.NewInt(payAmount * factor)),
 		},
 	}
 	for i, paymentState := range account.Payments[0].PaymentStates {
-		if paymentState.StateId != expectedStates[i].StateId ||
+		if paymentState.StateID != expectedStates[i].StateID ||
 			paymentState.PayAmount.Cmp(&expectedStates[i].PayAmount.Int) != 0 ||
 			paymentState.AmountReceived.Cmp(&expectedStates[i].AmountReceived.Int) != 0 {
-			t.Errorf("Expected: %v got %v", expectedStates[i].StateId, paymentState.StateId)
+			t.Errorf("Expected: %v got %v", expectedStates[i].StateID, paymentState.StateID)
 			t.Errorf("Expected: %s got %s", expectedStates[i].PayAmount.String(), paymentState.PayAmount.String())
 			t.Errorf("Expected: %s got %s", expectedStates[i].AmountReceived.String(), paymentState.AmountReceived.String())
 		}
