@@ -30,25 +30,25 @@ type Account struct {
 
 type Payment struct {
 	Base
-	Account                 *Account
-	AccountID               uuid.UUID `gorm:"type:uuid"`
-	UserWallet              string
-	Mode                    enum.Mode
-	PriceAmount             float64 `gorm:"type:numeric(30,15);default:0"`
-	PriceCurrency           enum.FiatCurrency
-	CurrentPaymentStateId   *uuid.UUID     `gorm:"type:uuid"`
-	CurrentPaymentState     PaymentState   `gorm:"<-:false;foreignKey:CurrentPaymentStateId"`
-	PaymentStates           []PaymentState // in eth service this one is <-:false
-	ReceivedConfirmations   *int64
-	ForwardingTransactionID *string
-	ForwardingConfirmations *int64
+	Account                   *Account
+	AccountID                 uuid.UUID `gorm:"type:uuid"`
+	MerchantWallet            string
+	Mode                      enum.Mode
+	PriceAmount               float64 `gorm:"type:numeric(30,15);default:0"`
+	PriceCurrency             enum.FiatCurrency
+	CurrentPaymentStateId     *uuid.UUID     `gorm:"type:uuid"`
+	CurrentPaymentState       PaymentState   `gorm:"<-:false;foreignKey:CurrentPaymentStateId"`
+	PaymentStates             []PaymentState // in eth service this one is <-:false
+	ReceivedConfirmations     *int64
+	ForwardingTransactionHash *string
+	ForwardingConfirmations   *int64
 }
 
 type PaymentState struct {
 	Base
 	PayAmount      *BigInt `gorm:"type:numeric(30);default:0"`
 	AmountReceived *BigInt `gorm:"type:numeric(30);default:0"`
-	StateName      enum.State
+	StateId        enum.State
 	PaymentID      uuid.UUID `gorm:"type:uuid"`
 }
 

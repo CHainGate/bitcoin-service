@@ -79,12 +79,12 @@ func (s *bitcoinService) CreateNewPayment(paymentRequest openApi.PaymentRequestD
 		Base:           model.Base{ID: uuid.New()},
 		PayAmount:      model.NewBigInt(payAmountInSatoshi),
 		AmountReceived: model.NewBigInt(big.NewInt(0)),
-		StateName:      enum.Waiting,
+		StateId:        enum.Waiting,
 	}
 
 	payment := model.Payment{
 		Account:               account,
-		UserWallet:            paymentRequest.Wallet,
+		MerchantWallet:        paymentRequest.Wallet,
 		Mode:                  mode,
 		PriceAmount:           paymentRequest.PriceAmount,
 		PriceCurrency:         priceCurrency,
@@ -127,7 +127,7 @@ func (s *bitcoinService) HandleWalletNotify(txId string, mode enum.Mode) {
 		return
 	}
 
-	if currentPayment.ReceivedConfirmations != nil && *currentPayment.ReceivedConfirmations >= 0 && currentPayment.CurrentPaymentState.StateName == enum.Paid {
+	if currentPayment.ReceivedConfirmations != nil && *currentPayment.ReceivedConfirmations >= 0 && currentPayment.CurrentPaymentState.StateId == enum.Paid {
 		log.Println("payment already handled")
 		return
 	}
@@ -150,9 +150,9 @@ func (s *bitcoinService) HandleWalletNotify(txId string, mode enum.Mode) {
 	}
 
 	if diff > 0 {
-		newState.StateName = enum.PartiallyPaid
+		newState.StateId = enum.PartiallyPaid
 	} else {
-		newState.StateName = enum.Paid
+		newState.StateId = enum.Paid
 	}
 
 	currentPayment.PaymentStates = append(currentPayment.PaymentStates, newState)
@@ -163,8 +163,8 @@ func (s *bitcoinService) HandleWalletNotify(txId string, mode enum.Mode) {
 	err = sendNotificationToBackend(currentPayment.ID.String(),
 		currentPayment.CurrentPaymentState.PayAmount.String(),
 		currentPayment.CurrentPaymentState.AmountReceived.String(),
-		currentPayment.CurrentPaymentState.StateName.String(),
-		currentPayment.ForwardingTransactionID)
+		currentPayment.CurrentPaymentState.StateId.String(),
+		currentPayment.ForwardingTransactionHash)
 
 	if err != nil {
 		log.Println(err)
@@ -214,7 +214,7 @@ func (s *bitcoinService) handlePaidPayments(mode enum.Mode) {
 			Base:           model.Base{ID: uuid.New()},
 			PayAmount:      payment.CurrentPaymentState.PayAmount,
 			AmountReceived: model.NewBigInt(amountReceived),
-			StateName:      enum.Confirmed,
+			StateId:        enum.Confirmed,
 		}
 
 		payment.ReceivedConfirmations = &minConf
@@ -225,8 +225,8 @@ func (s *bitcoinService) handlePaidPayments(mode enum.Mode) {
 		err = sendNotificationToBackend(payment.ID.String(),
 			payment.CurrentPaymentState.PayAmount.String(),
 			payment.CurrentPaymentState.AmountReceived.String(),
-			payment.CurrentPaymentState.StateName.String(),
-			payment.ForwardingTransactionID)
+			payment.CurrentPaymentState.StateId.String(),
+			payment.ForwardingTransactionHash)
 
 		if err != nil {
 			log.Println(err)
@@ -241,13 +241,13 @@ func (s *bitcoinService) handlePaidPayments(mode enum.Mode) {
 
 		forwardAmount := calculateForwardAmount(&payment.CurrentPaymentState.PayAmount.Int)
 		//TODO: if multiple blocknotify at the same time we send multiple times, but should in reality never happen
-		txId, err := s.createTransaction(payment.Account.Address, payment.UserWallet, forwardAmount, mode)
+		txHash, err := s.createTransaction(payment.Account.Address, payment.MerchantWallet, forwardAmount, mode)
 		if err != nil {
 			log.Println(err)
 			return
 		}
 		var conf int64 = 0
-		payment.ForwardingTransactionID = &txId
+		payment.ForwardingTransactionHash = &txHash
 		payment.ForwardingConfirmations = &conf
 
 		err = s.paymentRepository.Update(&payment)
@@ -278,16 +278,16 @@ func (s *bitcoinService) handleConfirmedPayments(mode enum.Mode) {
 		}
 
 		// sending failed
-		if payment.ForwardingTransactionID == nil && amount.Cmp(&payment.CurrentPaymentState.PayAmount.Int) >= 0 {
+		if payment.ForwardingTransactionHash == nil && amount.Cmp(&payment.CurrentPaymentState.PayAmount.Int) >= 0 {
 			forwardAmount := calculateForwardAmount(&payment.CurrentPaymentState.PayAmount.Int)
 			//TODO: if multiple blocknotify at the same time we send multiple times, but should in reality never happen
-			txId, err := s.createTransaction(payment.Account.Address, payment.UserWallet, forwardAmount, mode)
+			txHash, err := s.createTransaction(payment.Account.Address, payment.MerchantWallet, forwardAmount, mode)
 			if err != nil {
 				log.Println(err)
 				return
 			}
 			var conf int64 = 0
-			payment.ForwardingTransactionID = &txId
+			payment.ForwardingTransactionHash = &txHash
 			payment.ForwardingConfirmations = &conf
 
 			err = s.paymentRepository.Update(&payment)
@@ -299,8 +299,8 @@ func (s *bitcoinService) handleConfirmedPayments(mode enum.Mode) {
 		}
 
 		// already sent but could not save txId to db
-		if payment.ForwardingTransactionID == nil && amount.Cmp(big.NewInt(0)) == 0 {
-			transactions, err := s.findMissingTransaction(payment.UserWallet, mode)
+		if payment.ForwardingTransactionHash == nil && amount.Cmp(big.NewInt(0)) == 0 {
+			transactions, err := s.findMissingTransaction(payment.MerchantWallet, mode)
 			if err != nil {
 				log.Println(err)
 				return
@@ -310,13 +310,13 @@ func (s *bitcoinService) handleConfirmedPayments(mode enum.Mode) {
 			forwardAmountInBtc := btcutil.Amount(forwardAmount.Int64()).ToBTC()
 			for _, tx := range transactions {
 				if forwardAmountInBtc == tx.amount+tx.fee {
-					payment.ForwardingTransactionID = &tx.txId
+					payment.ForwardingTransactionHash = &tx.txId
 					break
 				}
 			}
 		}
 
-		transaction, err := getTransaction(client, *payment.ForwardingTransactionID)
+		transaction, err := getTransaction(client, *payment.ForwardingTransactionHash)
 		if err != nil {
 			log.Println(err)
 			return
@@ -331,7 +331,7 @@ func (s *bitcoinService) handleConfirmedPayments(mode enum.Mode) {
 			Base:           model.Base{ID: uuid.New()},
 			PayAmount:      payment.CurrentPaymentState.PayAmount,
 			AmountReceived: payment.CurrentPaymentState.AmountReceived,
-			StateName:      enum.Forwarded,
+			StateId:        enum.Forwarded,
 		}
 
 		payment.ForwardingConfirmations = &transaction.Confirmations
@@ -342,8 +342,8 @@ func (s *bitcoinService) handleConfirmedPayments(mode enum.Mode) {
 		err = sendNotificationToBackend(payment.ID.String(),
 			payment.CurrentPaymentState.PayAmount.String(),
 			payment.CurrentPaymentState.AmountReceived.String(),
-			payment.CurrentPaymentState.StateName.String(),
-			payment.ForwardingTransactionID)
+			payment.CurrentPaymentState.StateId.String(),
+			payment.ForwardingTransactionHash)
 
 		if err != nil {
 			log.Println(err)
@@ -372,7 +372,7 @@ func (s *bitcoinService) handleForwardedTransactions(mode enum.Mode) {
 	}
 
 	for _, payment := range payments {
-		transaction, err := getTransaction(client, *payment.ForwardingTransactionID)
+		transaction, err := getTransaction(client, *payment.ForwardingTransactionHash)
 		if err != nil {
 			log.Println(err)
 			return
@@ -383,7 +383,7 @@ func (s *bitcoinService) handleForwardedTransactions(mode enum.Mode) {
 				Base:           model.Base{ID: uuid.New()},
 				PayAmount:      payment.CurrentPaymentState.PayAmount,
 				AmountReceived: payment.CurrentPaymentState.AmountReceived,
-				StateName:      enum.Finished,
+				StateId:        enum.Finished,
 			}
 
 			payment.ForwardingConfirmations = &transaction.Confirmations
@@ -404,8 +404,8 @@ func (s *bitcoinService) handleForwardedTransactions(mode enum.Mode) {
 			err = sendNotificationToBackend(payment.ID.String(),
 				payment.CurrentPaymentState.PayAmount.String(),
 				payment.CurrentPaymentState.AmountReceived.String(),
-				payment.CurrentPaymentState.StateName.String(),
-				payment.ForwardingTransactionID)
+				payment.CurrentPaymentState.StateId.String(),
+				payment.ForwardingTransactionHash)
 
 			if err != nil {
 				log.Println(err)
@@ -449,7 +449,7 @@ func (s *bitcoinService) handleExpiredTransactions(mode enum.Mode) {
 				PayAmount:      payment.CurrentPaymentState.PayAmount,
 				AmountReceived: model.NewBigInt(receivedAmount),
 				PaymentID:      payment.CurrentPaymentState.PaymentID,
-				StateName:      enum.Paid,
+				StateId:        enum.Paid,
 			}
 		} else {
 			newState = model.PaymentState{
@@ -457,7 +457,7 @@ func (s *bitcoinService) handleExpiredTransactions(mode enum.Mode) {
 				PayAmount:      payment.CurrentPaymentState.PayAmount,
 				AmountReceived: payment.CurrentPaymentState.AmountReceived,
 				PaymentID:      payment.CurrentPaymentState.PaymentID,
-				StateName:      enum.Expired,
+				StateId:        enum.Expired,
 			}
 			payment.Account.Used = false
 			// if the buyer has partially_paid but the transaction is expired
@@ -474,8 +474,8 @@ func (s *bitcoinService) handleExpiredTransactions(mode enum.Mode) {
 		err = sendNotificationToBackend(payment.ID.String(),
 			payment.CurrentPaymentState.PayAmount.String(),
 			payment.CurrentPaymentState.AmountReceived.String(),
-			payment.CurrentPaymentState.StateName.String(),
-			payment.ForwardingTransactionID)
+			payment.CurrentPaymentState.StateId.String(),
+			payment.ForwardingTransactionHash)
 
 		if err != nil {
 			log.Println(err)
@@ -590,7 +590,7 @@ type recoverSentTransactionResult struct {
 	fee    float64
 }
 
-func (s *bitcoinService) findMissingTransaction(userWallet string, mode enum.Mode) ([]recoverSentTransactionResult, error) {
+func (s *bitcoinService) findMissingTransaction(merchantWallet string, mode enum.Mode) ([]recoverSentTransactionResult, error) {
 	client, err := s.getClientByMode(mode)
 	if err != nil {
 		return nil, err
@@ -601,14 +601,14 @@ func (s *bitcoinService) findMissingTransaction(userWallet string, mode enum.Mod
 		return nil, err
 	}
 
-	txIds, err := s.paymentRepository.FindAllOutgoingTransactionIdsByUserWalletAndMode(userWallet, mode)
+	txIds, err := s.paymentRepository.FindAllOutgoingTransactionIdsByMerchantWalletAndMode(merchantWallet, mode)
 	if err != nil {
 		return nil, err
 	}
 
 	var results []recoverSentTransactionResult
 	for _, transaction := range transactions {
-		if transaction.Category == "send" && transaction.Address == userWallet {
+		if transaction.Category == "send" && transaction.Address == merchantWallet {
 			if !contains(txIds, transaction.TxID) {
 				result := recoverSentTransactionResult{
 					txId:   transaction.TxID,
