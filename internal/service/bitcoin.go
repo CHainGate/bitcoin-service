@@ -413,11 +413,13 @@ func (s *bitcoinService) handleForwardedTransactions(mode enum.Mode) {
 				return
 			}
 
+			//TODO: update account and payment should be in one transaction
 			err = s.paymentRepository.Update(&payment)
 			if err != nil {
 				log.Println(err)
 				return
 			}
+			//TODO: update account and payment should be in one transaction
 			err = s.accountRepository.Update(payment.Account)
 			if err != nil {
 				log.Println(err)
@@ -483,12 +485,14 @@ func (s *bitcoinService) handleExpiredTransactions(mode enum.Mode) {
 			return
 		}
 
+		//TODO: update account and payment should be in one transaction
 		err = s.paymentRepository.Update(&payment)
 		if err != nil {
 			log.Println(err)
 			return
 		}
 
+		//TODO: update account and payment should be in one transaction
 		err = s.accountRepository.Update(payment.Account)
 		if err != nil {
 			log.Println(err)
