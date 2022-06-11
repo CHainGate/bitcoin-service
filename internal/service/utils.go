@@ -82,7 +82,7 @@ func convertBtcToSatoshi(val float64) (*big.Int, error) {
 
 // only forward 99%. 1% chaingate fee
 func calculateForwardAmount(amount *big.Int) *big.Int {
-	mul := big.NewInt(0).Mul(amount, big.NewInt(99))
+	mul := big.NewInt(0).Mul(amount, big.NewInt(int64(utils.Opts.ForwardAmountPercentage)))
 	return mul.Div(mul, big.NewInt(100))
 }
 
@@ -106,8 +106,7 @@ func getFeeRate(client *rpcclient.Client) (*float64, error) {
 	}
 
 	if feeRate.Errors[0] == "Insufficient data or no feerate found" {
-		fallbackFee := 0.00002986 //TODO add to .env
-		feeRate.FeeRate = &fallbackFee
+		feeRate.FeeRate = &utils.Opts.FallbackFee
 	}
 
 	return feeRate.FeeRate, nil
@@ -142,9 +141,9 @@ func getNetParams(client *rpcclient.Client) (*chaincfg.Params, error) {
 	switch info.Chain {
 	case "regtest":
 		return &chaincfg.RegressionNetParams, nil
-	case "test":
+	case enum.Test.String():
 		return &chaincfg.TestNet3Params, nil
-	case "main":
+	case enum.Main.String():
 		return &chaincfg.MainNetParams, nil
 	default:
 		return nil, errors.New("net not available")

@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"github.com/CHainGate/bitcoin-service/internal/utils"
 	"github.com/google/uuid"
 	"log"
 	"math/big"
@@ -189,7 +190,6 @@ func (s *bitcoinService) HandleBlockNotify(blockHash string, mode enum.Mode) {
 }
 
 func (s *bitcoinService) handlePaidPayments(mode enum.Mode) {
-	var minConf int64 = 6
 	payments, err := s.paymentRepository.FindPaidPaymentsByMode(mode)
 	if err != nil {
 		log.Println(err)
@@ -197,7 +197,7 @@ func (s *bitcoinService) handlePaidPayments(mode enum.Mode) {
 	}
 
 	for _, payment := range payments {
-		amountReceived, err := s.getUnspentByAddress(payment.Account.Address, int(minConf), mode)
+		amountReceived, err := s.getUnspentByAddress(payment.Account.Address, utils.Opts.MinimumConfirmations, mode)
 		if err != nil {
 			log.Println(err)
 			return
@@ -217,7 +217,8 @@ func (s *bitcoinService) handlePaidPayments(mode enum.Mode) {
 			StateID:        enum.Confirmed,
 		}
 
-		payment.ReceivedConfirmations = &minConf
+		receivedConfirmations := int64(utils.Opts.MinimumConfirmations)
+		payment.ReceivedConfirmations = &receivedConfirmations
 		payment.CurrentPaymentStateId = &confirmedState.ID
 		payment.CurrentPaymentState = confirmedState
 		payment.PaymentStates = append(payment.PaymentStates, confirmedState)
@@ -271,7 +272,7 @@ func (s *bitcoinService) handleConfirmedPayments(mode enum.Mode) {
 	}
 
 	for _, payment := range payments {
-		amount, err := s.getUnspentByAddress(payment.Account.Address, 6, mode)
+		amount, err := s.getUnspentByAddress(payment.Account.Address, utils.Opts.MinimumConfirmations, mode)
 		if err != nil {
 			log.Println(err)
 			return
@@ -378,7 +379,7 @@ func (s *bitcoinService) handleForwardedTransactions(mode enum.Mode) {
 			return
 		}
 
-		if transaction.Confirmations >= 6 {
+		if transaction.Confirmations >= int64(utils.Opts.MinimumConfirmations) {
 			finishState := model.PaymentState{
 				Base:           model.Base{ID: uuid.New()},
 				PayAmount:      payment.CurrentPaymentState.PayAmount,

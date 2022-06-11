@@ -35,7 +35,7 @@ func createRawTransaction(client *rpcclient.Client, fromAddress string, toAddres
 		return nil, err
 	}
 
-	unspentList, err := client.ListUnspentMinMaxAddresses(6, 9999999, []btcutil.Address{decodedFromAddress})
+	unspentList, err := client.ListUnspentMinMaxAddresses(utils.Opts.MinimumConfirmations, 9999999, []btcutil.Address{decodedFromAddress})
 	if err != nil {
 		return nil, err
 	}
