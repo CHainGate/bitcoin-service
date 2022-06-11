@@ -7,6 +7,7 @@ services:
       - "18500:18444"
     expose:
       - "18444"
+    command: ["-dustrelayfee=0.0"]
   buyer:
     build: ""
     ports:
@@ -30,4 +31,4 @@ services:
       - "18503:18444"
     expose:
       - "18444"
-    command: ["-addnode=network:18443", "-walletnotify=curl 'host.docker.internal:9001/api/notification/walletnotify?tx_id=%s&mode=test'", "-blocknotify=curl 'host.docker.internal:9001/api/notification/blocknotify?block_hash=%s&mode=test'"]
+    command: ["-dustrelayfee=0.0", "-addnode=network:18443", "-walletnotify=curl 'host.docker.internal:9001/api/notification/walletnotify?tx_id=%s&mode=main'", "-blocknotify=curl 'host.docker.internal:9001/api/notification/blocknotify?block_hash=%s&mode=main'"]

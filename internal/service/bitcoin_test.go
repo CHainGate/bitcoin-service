@@ -35,22 +35,20 @@ const payAmount = 0.003403
 const chaingateProfit = payAmount * 0.01
 
 var testPaymentState = model.PaymentState{
-	StateName:                enum.Waiting,
-	PayAmount:                model.NewBigInt(big.NewInt(payAmount * factor)),
-	AmountReceived:           model.NewBigInt(big.NewInt(0)),
-	TransactionConfirmations: -1,
+	StateID:        enum.Waiting,
+	PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
+	AmountReceived: model.NewBigInt(big.NewInt(0)),
 }
 
 var testPayment = model.Payment{
 	Account:               nil,
-	UserWallet:            "",
+	MerchantWallet:        "",
 	Mode:                  enum.Test,
 	PriceAmount:           100,
 	PriceCurrency:         enum.USD,
 	CurrentPaymentState:   testPaymentState,
 	CurrentPaymentStateId: &testPaymentState.ID,
 	PaymentStates:         []model.PaymentState{testPaymentState},
-	Confirmations:         -1,
 }
 
 func TestMain(m *testing.M) {
@@ -79,7 +77,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		return
 	}
-	testPayment.UserWallet = merchantAddress.String()
+	testPayment.MerchantWallet = merchantAddress.String()
 	service = NewBitcoinService(accountRepo, paymentRepo, chaingateClient, nil)
 
 	//Run tests
@@ -114,7 +112,7 @@ func TestBitcoinService_CreateNewPayment(t *testing.T) {
 	request := openApi.PaymentRequestDto{
 		PriceCurrency: "usd",
 		PriceAmount:   100,
-		Wallet:        testPayment.UserWallet,
+		Wallet:        testPayment.MerchantWallet,
 		Mode:          "test",
 	}
 
@@ -126,26 +124,26 @@ func TestBitcoinService_CreateNewPayment(t *testing.T) {
 
 	// Assert
 	if payment.Account.Address == "" ||
-		payment.UserWallet != testPayment.UserWallet ||
+		payment.MerchantWallet != testPayment.MerchantWallet ||
 		payment.Mode != testPayment.Mode ||
 		payment.PriceAmount != testPayment.PriceAmount ||
 		payment.PriceCurrency != testPayment.PriceCurrency ||
 		payment.CurrentPaymentStateId.String() == "" ||
-		payment.Confirmations != testPayment.Confirmations {
+		payment.ReceivedConfirmations != testPayment.ReceivedConfirmations {
 		t.Errorf("Expected address to not be empty, but got %s", payment.Account.Address)
-		t.Errorf("Expected %s, but got %s", testPayment.UserWallet, payment.UserWallet)
+		t.Errorf("Expected %s, but got %s", testPayment.MerchantWallet, payment.MerchantWallet)
 		t.Errorf("Expected %d, but got %d", testPayment.Mode, payment.Mode)
 		t.Errorf("Expected %f, but got %f", testPayment.PriceAmount, payment.PriceAmount)
 		t.Errorf("Expected %d, but got %d", testPayment.PriceCurrency, payment.PriceCurrency)
 		t.Errorf("Expected CurrentPaymentStateId to not be ampty, but got %s", payment.CurrentPaymentStateId.String())
-		t.Errorf("Expected %d, but got %d", testPayment.Confirmations, payment.Confirmations)
+		t.Errorf("Expected %d, but got %d", testPayment.ReceivedConfirmations, payment.ReceivedConfirmations)
 	}
 
 	payAmountCmp := payment.PaymentStates[0].PayAmount.Cmp(&testPaymentState.PayAmount.Int)
 	amountReceivedCmp := payment.PaymentStates[0].AmountReceived.Cmp(&testPaymentState.AmountReceived.Int)
 
-	if payment.PaymentStates[0].StateName != testPaymentState.StateName ||
-		payment.PaymentStates[0].TransactionConfirmations != testPaymentState.TransactionConfirmations ||
+	if payment.PaymentStates[0].StateID != testPaymentState.StateID ||
+		payment.ReceivedConfirmations != testPayment.ReceivedConfirmations ||
 		payAmountCmp != 0 ||
 		amountReceivedCmp != 0 {
 		t.Errorf("Expected payment state to be: %v but got %v", testPaymentState, payment.PaymentStates[0])
@@ -187,19 +185,18 @@ func TestBitcoinService_HandleWalletNotify(t *testing.T) {
 
 	cmpPayAmount := account.Payments[0].CurrentPaymentState.PayAmount.Cmp(&testPaymentState.PayAmount.Int)
 	cmpAmountReceived := account.Payments[0].CurrentPaymentState.AmountReceived.Cmp(&testPaymentState.PayAmount.Int)
-
 	if len(account.Payments) != 1 ||
-		account.Payments[0].CurrentPaymentState.StateName != enum.Paid ||
+		account.Payments[0].CurrentPaymentState.StateID != enum.Paid ||
 		cmpPayAmount != 0 ||
 		cmpAmountReceived != 0 ||
-		account.Payments[0].CurrentPaymentState.TransactionConfirmations != -1 ||
-		account.Payments[0].Confirmations != 0 {
+		account.Payments[0].ForwardingConfirmations != nil ||
+		*account.Payments[0].ReceivedConfirmations != 0 {
 		t.Errorf("Expected: %d got: %d", 1, len(account.Payments))
-		t.Errorf("Expected: %d got: %d", enum.Paid, account.Payments[0].CurrentPaymentState.StateName)
+		t.Errorf("Expected: %d got: %d", enum.Paid, account.Payments[0].CurrentPaymentState.StateID)
 		t.Errorf("Expected: %d got: %d", 0, cmpPayAmount)
 		t.Errorf("Expected: %d got: %d", 0, cmpAmountReceived)
-		t.Errorf("Expected: %d got: %d", -1, account.Payments[0].CurrentPaymentState.TransactionConfirmations)
-		t.Errorf("Expected: %d got: %d", 0, account.Payments[0].Confirmations)
+		t.Errorf("Expected: %v got: %d", nil, *account.Payments[0].ForwardingConfirmations)
+		t.Errorf("Expected: %d got: %d", 0, account.Payments[0].ReceivedConfirmations)
 	}
 
 	balance, err := chaingateClient.ListUnspentMin(0)
@@ -245,53 +242,51 @@ func TestBitcoinService_HandleBlockNotify(t *testing.T) {
 
 	expectedStates := []model.PaymentState{
 		{
-			StateName:                enum.Waiting,
-			PayAmount:                model.NewBigInt(big.NewInt(payAmount * factor)),
-			AmountReceived:           model.NewBigInt(big.NewInt(0)),
-			TransactionConfirmations: -1,
+			StateID:        enum.Waiting,
+			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
+			AmountReceived: model.NewBigInt(big.NewInt(0)),
 		},
 		{
-			StateName:                enum.Paid,
-			PayAmount:                model.NewBigInt(big.NewInt(payAmount * factor)),
-			AmountReceived:           model.NewBigInt(big.NewInt(payAmount * factor)),
-			TransactionConfirmations: -1,
+			StateID:        enum.Paid,
+			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
+			AmountReceived: model.NewBigInt(big.NewInt(payAmount * factor)),
 		},
 		{
-			StateName:                enum.Confirmed,
-			PayAmount:                model.NewBigInt(big.NewInt(payAmount * factor)),
-			AmountReceived:           model.NewBigInt(big.NewInt(payAmount * factor)),
-			TransactionConfirmations: -1,
+			StateID:        enum.Confirmed,
+			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
+			AmountReceived: model.NewBigInt(big.NewInt(payAmount * factor)),
 		},
 		{
-			StateName:                enum.Forwarded,
-			PayAmount:                model.NewBigInt(big.NewInt(payAmount * factor)),
-			AmountReceived:           model.NewBigInt(big.NewInt(payAmount * factor)),
-			TransactionConfirmations: 0,
+			StateID:        enum.Forwarded,
+			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
+			AmountReceived: model.NewBigInt(big.NewInt(payAmount * factor)),
 		},
 	}
 	for i, paymentState := range account.Payments[0].PaymentStates {
-		if paymentState.StateName != expectedStates[i].StateName ||
+		if paymentState.StateID != expectedStates[i].StateID ||
 			paymentState.PayAmount.Cmp(&expectedStates[i].PayAmount.Int) != 0 ||
-			paymentState.AmountReceived.Cmp(&expectedStates[i].AmountReceived.Int) != 0 ||
-			paymentState.TransactionConfirmations != expectedStates[i].TransactionConfirmations {
-			t.Errorf("Expected: %v got %v", expectedStates[i].StateName, paymentState.StateName)
+			paymentState.AmountReceived.Cmp(&expectedStates[i].AmountReceived.Int) != 0 {
+			t.Errorf("Expected: %v got %v", expectedStates[i].StateID, paymentState.StateID)
 			t.Errorf("Expected: %s got %s", expectedStates[i].PayAmount.String(), paymentState.PayAmount.String())
 			t.Errorf("Expected: %s got %s", expectedStates[i].AmountReceived.String(), paymentState.AmountReceived.String())
-			t.Errorf("Expected: %d got %d", expectedStates[i].TransactionConfirmations, paymentState.TransactionConfirmations)
 		}
-		if paymentState.StateName == enum.Forwarded && paymentState.TransactionID == "" {
-			t.Errorf("Expected transactionID not to be empty, but got %s", paymentState.TransactionID)
+
+		if paymentState.StateID == enum.Forwarded && account.Payments[0].ForwardingTransactionHash == nil {
+			t.Errorf("Expected ForwardingTransactionHash not to be empty, but got nil")
+		}
+
+		if paymentState.StateID == enum.Forwarded && *account.Payments[0].ForwardingConfirmations != 1 {
+			t.Errorf("Expected ForwardingConfirmations to be 1, but got %d", *account.Payments[0].ForwardingConfirmations)
 		}
 	}
 
-	if account.Payments[0].Confirmations != 6 {
-		t.Errorf("Expected confirmations %d, but got %d", 6, account.Payments[0].Confirmations)
+	if *account.Payments[0].ReceivedConfirmations != 6 {
+		t.Errorf("Expected confirmations %d, but got %d", 6, account.Payments[0].ReceivedConfirmations)
 	}
 
 	// wait for transaction to be published
 	time.Sleep(10 * time.Second)
-	//TODO: bitcoin sends all money if the difference is small
-	hash, err := chainhash.NewHashFromStr(account.Payments[0].PaymentStates[3].TransactionID)
+	hash, err := chainhash.NewHashFromStr(*account.Payments[0].ForwardingTransactionHash)
 	if err != nil {
 		t.Error(err)
 	}
@@ -300,7 +295,7 @@ func TestBitcoinService_HandleBlockNotify(t *testing.T) {
 		t.Error(err)
 	}
 
-	decodedAddress, err := btcutil.DecodeAddress(testPayment.UserWallet, &chaincfg.RegressionNetParams)
+	decodedAddress, err := btcutil.DecodeAddress(testPayment.MerchantWallet, &chaincfg.RegressionNetParams)
 	balance, err := buyerClient.ListUnspentMinMaxAddresses(0, 999999, []btcutil.Address{decodedAddress})
 
 	amount := big.NewFloat(balance[0].Amount)
@@ -334,6 +329,10 @@ func TestBitcoinService_HandleBlockNotify2(t *testing.T) {
 		Put("/api/internal/payment/webhook").
 		MatchType("json").
 		Reply(200)
+	gock.New("http://localhost:8000").
+		Put("/api/internal/payment/webhook").
+		MatchType("json").
+		Reply(200)
 
 	address, err := buyerClient.GetNewAddress("")
 	if err != nil {
@@ -360,53 +359,51 @@ func TestBitcoinService_HandleBlockNotify2(t *testing.T) {
 
 	expectedStates := []model.PaymentState{
 		{
-			StateName:                enum.Waiting,
-			PayAmount:                model.NewBigInt(big.NewInt(payAmount * factor)),
-			AmountReceived:           model.NewBigInt(big.NewInt(0)),
-			TransactionConfirmations: -1,
+			StateID:        enum.Waiting,
+			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
+			AmountReceived: model.NewBigInt(big.NewInt(0)),
 		},
 		{
-			StateName:                enum.Paid,
-			PayAmount:                model.NewBigInt(big.NewInt(payAmount * factor)),
-			AmountReceived:           model.NewBigInt(big.NewInt(payAmount * factor)),
-			TransactionConfirmations: -1,
+			StateID:        enum.Paid,
+			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
+			AmountReceived: model.NewBigInt(big.NewInt(payAmount * factor)),
 		},
 		{
-			StateName:                enum.Confirmed,
-			PayAmount:                model.NewBigInt(big.NewInt(payAmount * factor)),
-			AmountReceived:           model.NewBigInt(big.NewInt(payAmount * factor)),
-			TransactionConfirmations: -1,
+			StateID:        enum.Confirmed,
+			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
+			AmountReceived: model.NewBigInt(big.NewInt(payAmount * factor)),
 		},
 		{
-			StateName:                enum.Forwarded,
-			PayAmount:                model.NewBigInt(big.NewInt(payAmount * factor)),
-			AmountReceived:           model.NewBigInt(big.NewInt(payAmount * factor)),
-			TransactionConfirmations: 0,
+			StateID:        enum.Forwarded,
+			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
+			AmountReceived: model.NewBigInt(big.NewInt(payAmount * factor)),
 		},
 		{
-			StateName:                enum.Finished,
-			PayAmount:                model.NewBigInt(big.NewInt(payAmount * factor)),
-			AmountReceived:           model.NewBigInt(big.NewInt(payAmount * factor)),
-			TransactionConfirmations: 6,
+			StateID:        enum.Finished,
+			PayAmount:      model.NewBigInt(big.NewInt(payAmount * factor)),
+			AmountReceived: model.NewBigInt(big.NewInt(payAmount * factor)),
 		},
 	}
 	for i, paymentState := range account.Payments[0].PaymentStates {
-		if paymentState.StateName != expectedStates[i].StateName ||
+		if paymentState.StateID != expectedStates[i].StateID ||
 			paymentState.PayAmount.Cmp(&expectedStates[i].PayAmount.Int) != 0 ||
-			paymentState.AmountReceived.Cmp(&expectedStates[i].AmountReceived.Int) != 0 ||
-			paymentState.TransactionConfirmations != expectedStates[i].TransactionConfirmations {
-			t.Errorf("Expected: %v got %v", expectedStates[i].StateName, paymentState.StateName)
+			paymentState.AmountReceived.Cmp(&expectedStates[i].AmountReceived.Int) != 0 {
+			t.Errorf("Expected: %v got %v", expectedStates[i].StateID, paymentState.StateID)
 			t.Errorf("Expected: %s got %s", expectedStates[i].PayAmount.String(), paymentState.PayAmount.String())
 			t.Errorf("Expected: %s got %s", expectedStates[i].AmountReceived.String(), paymentState.AmountReceived.String())
-			t.Errorf("Expected: %d got %d", expectedStates[i].TransactionConfirmations, paymentState.TransactionConfirmations)
-		}
-		if (paymentState.StateName == enum.Forwarded || paymentState.StateName == enum.Finished) && paymentState.TransactionID == "" {
-			t.Errorf("Expected transactionID not to be empty, but got %s", paymentState.TransactionID)
 		}
 	}
 
-	if account.Payments[0].Confirmations != 6 {
-		t.Errorf("Expected confirmations %d, but got %d", 6, account.Payments[0].Confirmations)
+	if *account.Payments[0].ReceivedConfirmations != 6 {
+		t.Errorf("Expected confirmations %d, but got %d", 6, account.Payments[0].ReceivedConfirmations)
+	}
+
+	if account.Payments[0].ForwardingTransactionHash == nil {
+		t.Errorf("Expected ForwardingTransactionHash not to be nil")
+	}
+
+	if *account.Payments[0].ForwardingConfirmations != 6 {
+		t.Errorf("Expected ForwardingConfirmations to be 6, but got %d", *account.Payments[0].ForwardingConfirmations)
 	}
 
 	chaingateBalance, err := chaingateClient.GetBalance("*")
@@ -414,10 +411,10 @@ func TestBitcoinService_HandleBlockNotify2(t *testing.T) {
 		return
 	}
 
-	decodedAddress, err := btcutil.DecodeAddress(testPayment.UserWallet, &chaincfg.RegressionNetParams)
+	decodedAddress, err := btcutil.DecodeAddress(testPayment.MerchantWallet, &chaincfg.RegressionNetParams)
 	merchantBalance, err := buyerClient.ListUnspentMinMaxAddresses(6, 999999, []btcutil.Address{decodedAddress})
 
-	hash, err := chainhash.NewHashFromStr(account.Payments[0].PaymentStates[3].TransactionID)
+	hash, err := chainhash.NewHashFromStr(*account.Payments[0].ForwardingTransactionHash)
 	if err != nil {
 		t.Error(err)
 	}

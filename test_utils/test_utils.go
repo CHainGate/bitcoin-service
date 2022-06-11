@@ -83,6 +83,15 @@ func BitcoinNodeTestSetup(pool *dockertest.Pool) (*BitcoinNodeTestSetupResult, e
 		return nil, err
 	}
 
+	err = chaingate.Expire(120) // Tell docker to hard kill the container in 120 seconds
+	if err != nil {
+		return nil, err
+	}
+	err = buyer.Expire(120) // Tell docker to hard kill the container in 120 seconds
+	if err != nil {
+		return nil, err
+	}
+
 	chaingateHostRPC := chaingate.GetHostPort("18444/tcp")
 	chaingateHost := chaingate.GetPort("18443/tcp")
 	buyerHostRPC := buyer.GetHostPort("18444/tcp")
@@ -149,6 +158,12 @@ func BitcoinNodeTestSetup(pool *dockertest.Pool) (*BitcoinNodeTestSetupResult, e
 	if err != nil {
 		log.Fatalf("chaingate createwallet: %s", err)
 	}
+	changeAddress, err := chaingateClient.GetRawChangeAddress("bech32")
+	if err != nil {
+		log.Fatalf("changeAddress: %s", err)
+	}
+
+	utils.Opts.TestChangeAddress = changeAddress.EncodeAddress()
 
 	result := &BitcoinNodeTestSetupResult{
 		ChaingateClient:    chaingateClient,

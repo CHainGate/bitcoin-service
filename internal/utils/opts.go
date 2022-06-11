@@ -10,22 +10,27 @@ import (
 )
 
 type OptsType struct {
-	ServerPort           int
-	DbHost               string
-	DbUser               string
-	DbPassword           string
-	DbName               string
-	DbPort               string
-	BitcoinTestHost      string
-	BitcoinTestUser      string
-	BitcoinTestPass      string
-	BitcoinMainHost      string
-	BitcoinMainUser      string
-	BitcoinMainPass      string
-	ProxyBaseUrl         string
-	BackendBaseUrl       string
-	TestWalletPassphrase string
-	MainWalletPassphrase string
+	ServerPort              int
+	DbHost                  string
+	DbUser                  string
+	DbPassword              string
+	DbName                  string
+	DbPort                  string
+	BitcoinTestHost         string
+	BitcoinTestUser         string
+	BitcoinTestPass         string
+	BitcoinMainHost         string
+	BitcoinMainUser         string
+	BitcoinMainPass         string
+	ProxyBaseUrl            string
+	BackendBaseUrl          string
+	TestWalletPassphrase    string
+	MainWalletPassphrase    string
+	TestChangeAddress       string
+	MainChangeAddress       string
+	ForwardAmountPercentage int
+	FallbackFee             float64
+	MinimumConfirmations    int
 }
 
 var (
@@ -55,6 +60,11 @@ func NewOpts() {
 	flag.StringVar(&o.BackendBaseUrl, "BACKEND_BASE_URL", lookupEnv("BACKEND_BASE_URL", "http://localhost:8000/api/internal"), "Backend base url")
 	flag.StringVar(&o.TestWalletPassphrase, "TEST_WALLET_PASSPHRASE", lookupEnv("TEST_WALLET_PASSPHRASE"), "TEST WALLET PASSPHRASE")
 	flag.StringVar(&o.MainWalletPassphrase, "MAIN_WALLET_PASSPHRASE", lookupEnv("MAIN_WALLET_PASSPHRASE"), "MAIN WALLET PASSPHRASE")
+	flag.StringVar(&o.TestChangeAddress, "TEST_CHANGE_ADDRESS", lookupEnv("TEST_CHANGE_ADDRESS"), "TEST_CHANGE_ADDRESS")
+	flag.StringVar(&o.MainChangeAddress, "MAIN_CHANGE_ADDRESS", lookupEnv("MAIN_CHANGE_ADDRESS"), "MAIN_CHANGE_ADDRESS")
+	flag.IntVar(&o.ForwardAmountPercentage, "FORWARD_AMOUNT_PERCENTAGE", lookupEnvInt("FORWARD_AMOUNT_PERCENTAGE", 99), "FORWARD_AMOUNT_PERCENTAGE")
+	flag.Float64Var(&o.FallbackFee, "FALLBACK_FEE", lookupEnvFloat64("FALLBACK_FEE", 0.00002986), "FALLBACK_FEE")
+	flag.IntVar(&o.MinimumConfirmations, "MINIMUM_CONFIRMATIONS", lookupEnvInt("MINIMUM_CONFIRMATIONS", 6), "MINIMUM_CONFIRMATIONS")
 
 	Opts = o
 }
@@ -86,4 +96,21 @@ func lookupEnvInt(key string, defaultValues ...int) int {
 		}
 	}
 	return 0
+}
+
+func lookupEnvFloat64(key string, defaultValues ...float64) float64 {
+	if val, ok := os.LookupEnv(key); ok {
+		v, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			log.Printf("LookupEnvParse[%s]: %v", key, err)
+			return 0.0
+		}
+		return v
+	}
+	for _, v := range defaultValues {
+		if v != 0.0 {
+			return v
+		}
+	}
+	return 0.0
 }
