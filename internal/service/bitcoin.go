@@ -207,7 +207,7 @@ func (s *bitcoinService) handlePaidPayments(mode enum.Mode) {
 		var diff = payment.CurrentPaymentState.PayAmount.Cmp(amountReceived)
 
 		if diff > 0 {
-			return // not enough
+			return // not enough funds, or we need to wait for 6 confirmations
 		}
 
 		confirmedState := model.PaymentState{
@@ -278,7 +278,9 @@ func (s *bitcoinService) handleConfirmedPayments(mode enum.Mode) {
 			return
 		}
 
-		// sending failed
+		amount.Sub(amount, &payment.Account.Remainder.Int)
+
+		// sending failed try to send again
 		if payment.ForwardingTransactionHash == nil && amount.Cmp(&payment.CurrentPaymentState.PayAmount.Int) >= 0 {
 			forwardAmount := calculateForwardAmount(&payment.CurrentPaymentState.PayAmount.Int)
 			//TODO: if multiple blocknotify at the same time we send multiple times, but should in reality never happen
@@ -443,6 +445,7 @@ func (s *bitcoinService) handleExpiredTransactions(mode enum.Mode) {
 			return
 		}
 
+		receivedAmount.Sub(receivedAmount, &payment.Account.Remainder.Int)
 		var newState model.PaymentState
 
 		// he has paid but we did not get the notifications

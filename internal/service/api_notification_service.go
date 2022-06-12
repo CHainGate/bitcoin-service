@@ -32,7 +32,7 @@ func NewNotificationApiService(bitcoinService IBitcoinService) openApi.Notificat
 }
 
 // BlockNotify - New block notification from bitcoin node
-func (s *NotificationApiService) BlockNotify(ctx context.Context, blockHash string, mode string) (openApi.ImplResponse, error) {
+func (s *NotificationApiService) BlockNotify(_ context.Context, blockHash string, mode string) (openApi.ImplResponse, error) {
 	m, ok := enum.ParseStringToModeEnum(mode)
 	if !ok {
 		return openApi.Response(http.StatusBadRequest, nil), errors.New(fmt.Sprintf("Wrong mode: %s", mode))
@@ -43,7 +43,7 @@ func (s *NotificationApiService) BlockNotify(ctx context.Context, blockHash stri
 }
 
 // WalletNotify - New wallet notification from Bitcoin Node
-func (s *NotificationApiService) WalletNotify(ctx context.Context, txId string, mode string) (openApi.ImplResponse, error) {
+func (s *NotificationApiService) WalletNotify(_ context.Context, txId string, mode string) (openApi.ImplResponse, error) {
 	m, ok := enum.ParseStringToModeEnum(mode)
 	if !ok {
 		return openApi.Response(http.StatusBadRequest, nil), errors.New(fmt.Sprintf("Wrong mode: %s", mode))

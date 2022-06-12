@@ -104,7 +104,7 @@ func (r *paymentRepository) FindExpiredPaymentsByMode(mode enum.Mode) ([]model.P
 	result := r.DB.
 		Preload("Account").
 		Joins("CurrentPaymentState").
-		Where("payments.created_at < ? AND \"CurrentPaymentState\".\"state_id\" IN ? AND mode = ?", t, []enum.State{enum.CurrencySelection, enum.Waiting, enum.PartiallyPaid}, mode).
+		Where("payments.created_at < ? AND \"CurrentPaymentState\".\"state_id\" IN ? AND mode = ?", t, []enum.State{enum.Waiting, enum.PartiallyPaid}, mode).
 		Find(&payments)
 
 	if result.Error != nil {
