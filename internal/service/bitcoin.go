@@ -68,7 +68,7 @@ func (s *bitcoinService) CreateNewPayment(paymentRequest openApi.PaymentRequestD
 	}
 
 	if !enough {
-		return nil, errors.New("Pay amount is to low ")
+		return nil, errors.New("Pay amount is too low ")
 	}
 
 	account, err := s.getFreeAccount(mode)
