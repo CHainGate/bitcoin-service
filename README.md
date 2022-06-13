@@ -11,78 +11,65 @@ docker run --rm -v ${PWD}:/local openapitools/openapi-generator-cli generate -i 
 goimports -w .
  ```
 
-##Bitcoin regtest
-Setup Guide: 
-- https://bitcointalk.org/index.php?topic=5268794.0 \
-- https://olivermouse.wordpress.com/2018/01/13/connecting-multiple-bitcoin-core-nodes-regtest/
-
-Default directory in windows: %APPDATA%\Bitcoin
-
-
-Start bitcoin regtest
+## Bitcoin cli commands
+Start bitcoin daemon
 ```
-.\bitcoind.exe -fallbackfee='0.001' -regtest -rpcuser=user -rpcpassword=XXXX
+.\bitcoind.exe -datadir=D:\bitcoin  
+.\bitcoind.exe -testnet -datadir=D:\bitcoin
 ```
 
 Create wallet
 ```
-.\bitcoin-cli.exe -regtest createwallet "chaingate-wallet"
-.\bitcoin-cli.exe -regtest createwallet "buyer-wallet"
-.\bitcoin-cli.exe -regtest createwallet "merchant-wallet"
+.\bitcoin-cli.exe -rpcuser=user --rpcpassword=pass createwallet "chaingate-main-wallet" false false "passphrase" false false true
+.\bitcoin-cli.exe -testnet --rpcuser=user --rpcpassword=pass createwallet "chaingate-test-wallet" false false "passphrase" false false true
+
 ```
 
-Load wallet
+Create change address
 ```
-bitcoin-cli.exe -regtest loadwallet "chaingate-wallet"
-```
-
-Unload wallet
-```
-.\bitcoin-cli.exe -regtest unloadwallet "chaingate-wallet"
-```
-Create new address
-```
-.\bitcoin-cli.exe -regtest getnewaddress
-```
-
-Fund address
-```
-.\bitcoin-cli.exe -regtest generatetoaddress 101 "<address>"
-```
-
-Send btc
-```
-.\bitcoin-cli.exe -regtest sendtoaddress "bcrt1qch7g607n2sxnc2e229uc2a0gcf06s5zfxyqqgk" 0.1 "drinks" "room77" true
+.\bitcoin-cli.exe -rpcuser=user --rpcpassword=pass getrawchangeaddress
+.\bitcoin-cli.exe -testnet --rpcuser=user --rpcpassword=pass getrawchangeaddress
 ```
 
 
+## Bitcoin regtest
+For regtest there is a docker-compose file in test_utils/docker.
+It starts 4 nodes. A network, buyer, merchant and chaingate node.
+Here is the setup documented to test the CHainGate application.
 
+Start docker-compose and wait for 1min till all nodes are connected with each other. 
 ```
-.\bitcoind.exe -regtest -fallbackfee='0.000086' -datadir=D:\bitcoin\regtest\network
-.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\network createwallet "network-wallet"
-.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\network getnewaddress
-.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\network generatetoaddress 101 ""
-.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\network sendtoaddress "" 10
-
-
-.\bitcoind.exe -regtest -fallbackfee='0.000086' -datadir=D:\bitcoin\regtest\merchant
-.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\merchant createwallet "merchant-wallet"
-.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\merchant getnewaddress
-
-.\bitcoind.exe -regtest -fallbackfee='0.000086' -datadir=D:\bitcoin\regtest\chaingate
-.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\chaingate createwallet "chaingate-wallet" false false "secret"
-
-.\bitcoind.exe -regtest -fallbackfee='0.000086' -datadir=D:\bitcoin\regtest\buyer
-.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\buyer createwallet "buyer-wallet"
-.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\buyer getnewaddress
-.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\buyer sendtoaddress "" 
-
-.\bitcoin-cli.exe -regtest -datadir=D:\bitcoin\regtest\buyer sendtoaddress "bcrt1qud0lp7q3gg2d96uhxj7aa9ee928x8t2zkqnt2s" 0.1
+docker-compose up -V
 ```
 
-Bitcoin Regtest via Docker starten
+Setup buyer node
+```
+docker exec -it docker_buyer_1 /bin/bash
+/bitcoin-cli -regtest createwallet "buyer-wallet"
+/bitcoin-cli -regtest getnewaddress
+```
 
+Setup merchant node
+```
+docker exec -it docker_merchant_1 /bin/bash
+/bitcoin-cli -regtest createwallet "merchant-wallet"
+/bitcoin-cli -regtest getnewaddress
+```
+
+Setup chaingate node
 ```
 docker exec -it docker_chaingate_1 /bin/bash
-/bitcoin-cli -regtest generatetoaddress 1 bcrt1qgclvhaa2lgedrze402qzhpxrkj4sxrlszawn3n
+/bitcoin-cli -regtest createwallet "chaingate-wallet" false false "secret" false false true
+/bitcoin-cli -regtest getrawchangeaddress
 ```
+
+Setup network node
+```
+docker exec -it docker_network_1 /bin/bash
+/bitcoin-cli -regtest createwallet "network-wallet"
+/bitcoin-cli -regtest getnewaddress
+/bitcoin-cli -regtest generatetoaddress 101 “<addresse von getnewaddress>” #50BTC für die Addresse
+/bitcoin-cli -regtest sendtoaddress “<addresse von buyer>” 10 #Sende 10 BTC an buyer
+/bitcoin-cli -regtest generatetoaddress 6 “<addresse von getnewaddress>” #verify
+```
+
