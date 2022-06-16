@@ -105,7 +105,7 @@ func getFeeRate(client *rpcclient.Client) (*float64, error) {
 		return nil, err
 	}
 
-	if feeRate.Errors[0] == "Insufficient data or no feerate found" {
+	if len(feeRate.Errors) > 0 && feeRate.Errors[0] == "Insufficient data or no feerate found" {
 		feeRate.FeeRate = &utils.Opts.FallbackFee
 	}
 
