@@ -14,7 +14,7 @@ goimports -w .
 ## Bitcoin cli commands
 Start bitcoin daemon
 ```
-.\bitcoind.exe -datadir=D:\bitcoin  
+.\bitcoind.exe -datadir=D:\bitcoin -dustrelayfee=0.0
 .\bitcoind.exe -testnet -datadir=D:\bitcoin
 ```
 
